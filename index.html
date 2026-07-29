@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#11998e" />
+  <meta name="description" content="健身打卡 - 记录每一次坚持" />
+  <title>健身打卡</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="icon.svg" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <!-- 登录 / 注册 -->
+  <div id="authScreen" class="auth-screen">
+    <div class="auth-card">
+      <div class="auth-logo">🧚</div>
+      <div class="auth-title">健身打卡</div>
+      <div class="auth-tabs">
+        <button class="auth-tab active" data-mode="login">登录</button>
+        <button class="auth-tab" data-mode="register">注册</button>
+      </div>
+      <input type="text" id="authUser" class="auth-input" placeholder="用户名" autocomplete="username" />
+      <input type="password" id="authPass" class="auth-input" placeholder="密码（至少 4 位）" autocomplete="current-password" />
+      <div class="auth-err" id="authErr"></div>
+      <button class="auth-submit" id="authSubmit">登录</button>
+      <div class="auth-hint">多用户版：同一设备可切换不同账号，数据各自独立保存在本机。</div>
+    </div>
+  </div>
+
+  <div id="app" style="display:none">
+    <header class="app-header">
+      <div class="header-top">
+        <div class="header-titles">
+          <div class="header-sub" id="headerDate">—</div>
+          <div class="header-title">健身打卡</div>
+        </div>
+        <div class="header-user">
+          <span class="user-name" id="userName"></span>
+          <button class="logout-btn" id="logoutBtn">退出</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="content">
+      <!-- 今日 -->
+      <section class="tab-panel active" id="panel-today">
+        <div class="hero-card">
+          <div class="hero-greet" id="heroGreet">今天也要加油</div>
+          <div class="hero-stats">
+            <div class="hstat">
+              <div class="hstat-num" id="statStreak">0</div>
+              <div class="hstat-label">连续天数</div>
+            </div>
+            <div class="hstat-divider"></div>
+            <div class="hstat">
+              <div class="hstat-num" id="statTotal">0</div>
+              <div class="hstat-label">累计打卡</div>
+            </div>
+          </div>
+          <button class="checkin-btn" id="checkinBtn">
+            <span class="checkin-emoji">🔥</span>
+            <span class="checkin-text" id="checkinText">今日打卡</span>
+          </button>
+          <div class="hero-hint" id="heroHint">点击按钮，记录今天的坚持</div>
+        </div>
+
+        <div class="reco-banner" id="recoBanner" hidden></div>
+
+        <div class="section-title">今日任务 <span class="task-progress" id="taskProgress"></span></div>
+        <div class="task-current" id="taskCurrent"></div>
+        <div class="task-list" id="taskList"></div>
+        <div class="task-add">
+          <input type="text" id="taskInput" placeholder="添加动作，如 热身5分钟" maxlength="40" />
+          <button id="taskAddBtn">添加</button>
+        </div>
+
+        <div class="section-title">今日运动</div>
+        <div class="today-list" id="todayList"></div>
+      </section>
+
+      <!-- 日历 -->
+      <section class="tab-panel" id="panel-calendar">
+        <div class="cal-card">
+          <div class="cal-head">
+            <button class="cal-nav" id="calPrev">‹</button>
+            <div class="cal-month" id="calMonth">—</div>
+            <button class="cal-nav" id="calNext">›</button>
+          </div>
+          <div class="cal-week">
+            <span>日</span><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span>
+          </div>
+          <div class="cal-grid" id="calGrid"></div>
+          <div class="cal-legend">
+            <span class="dot dot-done"></span>已打卡
+            <span class="dot dot-rest"></span>休息
+          </div>
+        </div>
+        <div class="section-title" id="dayDetailTitle">当日详情</div>
+        <div class="day-detail" id="dayDetail"></div>
+      </section>
+
+      <!-- 统计 -->
+      <section class="tab-panel" id="panel-stats">
+        <div class="summary-grid">
+          <div class="sum-card">
+            <div class="sum-num" id="sumTotal">0</div>
+            <div class="sum-label">累计打卡(天)</div>
+          </div>
+          <div class="sum-card">
+            <div class="sum-num" id="sumCur">0</div>
+            <div class="sum-label">当前连续</div>
+          </div>
+          <div class="sum-card">
+            <div class="sum-num" id="sumLong">0</div>
+            <div class="sum-label">最长连续</div>
+          </div>
+          <div class="sum-card">
+            <div class="sum-num" id="sumDur">0</div>
+            <div class="sum-label">总时长(分)</div>
+          </div>
+        </div>
+
+        <div class="chart-card">
+          <div class="chart-title">最近 7 天运动时长</div>
+          <canvas id="chartWeek" class="chart-canvas"></canvas>
+        </div>
+
+        <div class="chart-card">
+          <div class="chart-title">最近 30 天打卡趋势</div>
+          <canvas id="chartTrend" class="chart-canvas"></canvas>
+        </div>
+
+        <div class="chart-card">
+          <div class="chart-title">运动类型分布</div>
+          <div class="type-dist" id="typeDist"></div>
+        </div>
+
+        <div class="danger-zone">
+          <button class="btn-ghost" id="exportBtn">导出数据</button>
+          <button class="btn-ghost danger" id="resetBtn">清空所有数据</button>
+        </div>
+      </section>
+
+      <!-- 计划 -->
+      <section class="tab-panel" id="panel-plan">
+        <div class="plan-intro" id="planIntro"></div>
+        <div class="plan-list" id="planList"></div>
+        <div class="plan-rest" id="planRest"></div>
+      </section>
+    </main>
+
+    <nav class="bottom-nav">
+      <button class="nav-btn active" data-tab="today">
+        <span class="nav-ico">🏠</span><span class="nav-txt">今日</span>
+      </button>
+      <button class="nav-btn" data-tab="calendar">
+        <span class="nav-ico">📅</span><span class="nav-txt">日历</span>
+      </button>
+      <button class="nav-btn" data-tab="stats">
+        <span class="nav-ico">📊</span><span class="nav-txt">统计</span>
+      </button>
+      <button class="nav-btn" data-tab="plan">
+        <span class="nav-ico">📋</span><span class="nav-txt">计划</span>
+      </button>
+    </nav>
+  </div>
+
+  <!-- 打卡记录弹层 -->
+  <div class="sheet-overlay" id="sheetOverlay" hidden>
+    <div class="sheet" id="sheet">
+      <div class="sheet-handle"></div>
+      <div class="sheet-head">
+        <div class="sheet-title" id="sheetTitle">记录今日运动</div>
+        <button class="sheet-close" id="sheetClose">✕</button>
+      </div>
+
+      <div class="sheet-body">
+        <div class="field-label">选择运动类型</div>
+        <div class="type-chips" id="typeChips"></div>
+
+        <div class="field-row">
+          <div class="field">
+            <label>时长(分钟)</label>
+            <input type="number" id="inpDuration" inputmode="numeric" placeholder="30" min="0" />
+          </div>
+          <div class="field">
+            <label>消耗(千卡)</label>
+            <input type="number" id="inpCalories" inputmode="numeric" placeholder="可选" min="0" />
+          </div>
+        </div>
+
+        <div class="field">
+          <label>备注</label>
+          <input type="text" id="inpNote" placeholder="例如：胸部+三头" maxlength="40" />
+        </div>
+
+        <button class="btn-add" id="btnAddExercise">+ 添加到今日</button>
+
+        <div class="field-label" style="margin-top:14px">今日已记录</div>
+        <div class="edit-list" id="editList"></div>
+      </div>
+
+      <div class="sheet-foot">
+        <button class="btn-secondary" id="btnUndo" hidden>撤销打卡</button>
+        <button class="btn-primary" id="btnFinish">完成打卡</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" hidden></div>
+
+  <script src="js/app.js"></script>
+</body>
+</html>

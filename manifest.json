@@ -1,0 +1,20 @@
+{
+  "name": "健身打卡",
+  "short_name": "打卡",
+  "description": "记录每一次坚持 · 健身打卡",
+  "lang": "zh-CN",
+  "start_url": "index.html",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f3f5f7",
+  "theme_color": "#11998e",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -300,6 +300,36 @@
     renderRecommend();
   }
 
+  /* 按星期几推荐今日训练（横幅） */
+  function renderRecommend() {
+    var box = $("recoBanner");
+    if (!box) return;
+    var today = todayKey();
+    if (data.recDismiss && data.recDismiss[today]) { box.hidden = true; box.innerHTML = ""; return; }
+    var now = new Date();
+    var sc = SCHEDULE[now.getDay()];
+    if (!sc) { box.hidden = true; return; }
+    if (sc.type === "rest") {
+      box.innerHTML =
+        '<div class="reco-ico">🧘</div>' +
+        '<div class="reco-main"><div class="reco-title">今天休息日 · 放松恢复</div>' +
+        '<div class="reco-sub">' + escapeHtml(sc.name) + '</div></div>' +
+        '<button class="reco-x" data-act="dismiss">✕</button>';
+      box.hidden = false;
+      return;
+    }
+    var day = null;
+    DEFAULT_PLAN.days.forEach(function (d) { if (d.id === sc.day) day = d; });
+    if (!day) { box.hidden = true; return; }
+    box.innerHTML =
+      '<div class="reco-ico">💪</div>' +
+      '<div class="reco-main"><div class="reco-title">今天是' + WEEK[now.getDay()] + ' · 推荐练 ' + escapeHtml(day.name) + '</div>' +
+      '<div class="reco-sub">一键载入今日任务，跟着练</div></div>' +
+      '<button class="reco-btn" data-act="load" data-day="' + day.id + '">载入</button>' +
+      '<button class="reco-x" data-act="dismiss">✕</button>';
+    box.hidden = false;
+  }
+
   function exRow(e) {
     var t = TYPE_MAP[e.type] || TYPE_MAP.other;
     var row = document.createElement("div");

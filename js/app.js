@@ -64,21 +64,19 @@
     ]
   };
 
-  /* ---------- 应用版本（用于登录页标识，确认是否运行最新版） ---------- */
-  var APP_VERSION = "2.1.0";
+  /* ---------- 应用版本（主界面右上角标识，确认是否运行最新版） ---------- */
+  var APP_VERSION = "2.4.0";
 
-  /* ---------- 数据层（多用户：每用户独立存储） ---------- */
-  var USERS_KEY = "fitapp_users";
-  var SESSION_KEY = "fitapp_session";
-  var currentUser = null;
+  /* ---------- 数据层（单机版：统一存储，无登录） ---------- */
+  var DATA_KEY = "fitapp_data";
+  var currentUser = "我";   // 单机模式内部标记，无登录
   var data = { records: {}, tasks: {}, plan: null, recDismiss: {} };
 
-  function storeKeyFor(user) { return "fitapp_data_" + user; }
+  function storeKeyFor() { return DATA_KEY; }
 
   function load() {
-    if (!currentUser) return;
     try {
-      var raw = localStorage.getItem(storeKeyFor(currentUser));
+      var raw = localStorage.getItem(DATA_KEY);
       if (raw) data = JSON.parse(raw);
       if (!data.records) data.records = {};
       if (!data.tasks) data.tasks = {};
@@ -87,76 +85,10 @@
     } catch (e) { data = { records: {}, tasks: {}, plan: null, recDismiss: {} }; }
   }
   function save() {
-    if (!currentUser) return;
-    try { localStorage.setItem(storeKeyFor(currentUser), JSON.stringify(data)); } catch (e) {}
+    try { localStorage.setItem(DATA_KEY, JSON.stringify(data)); } catch (e) {}
   }
 
-  /* ---------- 账户与鉴权（前端多账户；仅用户名，无密码） ---------- */
-  /* 纯 JS SHA-256（保留备用，无需 secure context，本地 / 局域网 / file 均可运行） */
-  function sha256(s) {
-    function S(X, n) { return (X >>> n) | (X << (32 - n)); }
-    function R(X, n) { return (X >>> n); }
-    function Ch(x, y, z) { return ((x & y) ^ ((~x) & z)); }
-    function Maj(x, y, z) { return ((x & y) ^ (x & z) ^ (y & z)); }
-    function S0(x) { return (S(x, 2) ^ S(x, 13) ^ S(x, 22)); }
-    function S1(x) { return (S(x, 6) ^ S(x, 11) ^ S(x, 25)); }
-    function G0(x) { return (S(x, 7) ^ S(x, 18) ^ R(x, 3)); }
-    function G1(x) { return (S(x, 17) ^ S(x, 19) ^ R(x, 10)); }
-    function safeAdd(x, y) { var l = (x & 0xFFFF) + (y & 0xFFFF); var m = (x >> 16) + (y >> 16) + (l >> 16); return (m << 16) | (l & 0xFFFF); }
-    var K = [0x428A2F98,0x71374491,0xB5C0FBCF,0xE9B5DBA5,0x3956C25B,0x59F111F1,0x923F82A4,0xAB1C5ED5,0xD807AA98,0x12835B01,0x243185BE,0x550C7DC3,0x72BE5D74,0x80DEB1FE,0x9BDC06A7,0xC19BF174,0xE49B69C1,0xEFBE4786,0x0FC19DC6,0x240CA1CC,0x2DE92C6F,0x4A7484AA,0x5CB0A9DC,0x76F988DA,0x983E5152,0xA831C66D,0xB00327C8,0xBF597FC7,0xC6E00BF3,0xD5A79147,0x06CA6351,0x14292967,0x27B70A85,0x2E1B2138,0x4D2C6DFC,0x53380D13,0x650A7354,0x766A0ABB,0x81C2C92E,0x92722C85,0xA2BFE8A1,0xA81A664B,0xC24B8B70,0xC76C51A3,0xD192E819,0xD6990624,0xF40E3585,0x106AA070,0x19A4C116,0x1E376C08,0x2748774C,0x34B0BCB5,0x391C0CB3,0x4ED8AA4A,0x5B9CCA4F,0x682E6FF3,0x748F82EE,0x78A5636F,0x84C87814,0x8CC70208,0x90BEFFFA,0xA4506CEB,0xBEF9A3F7,0xC67178F2];
-    var H = [0x6A09E667,0xBB67AE85,0x3C6EF372,0xA54FF53A,0x510E527F,0x9B05688C,0x1F83D9AB,0x5BE0CD19];
-    var m = [];
-    for (var i = 0; i < s.length; i++) { var c = s.charCodeAt(i); m[i >> 2] |= (c & 0xFF) << (24 - (i % 4) * 8); }
-    var len = s.length * 8;
-    m[len >> 5] |= 0x80 << (24 - (len % 32));
-    m[(((len + 64) >> 9) << 4) + 15] = len;
-    for (var i2 = 0; i2 < m.length; i2 += 16) {
-      var a = H[0], b = H[1], c = H[2], d = H[3], e = H[4], f = H[5], g = H[6], h = H[7];
-      var W = new Array(64);
-      for (var j = 0; j < 64; j++) {
-        if (j < 16) W[j] = m[j + i2] || 0;
-        else W[j] = safeAdd(safeAdd(safeAdd(G1(W[j - 2]), W[j - 7]), G0(W[j - 15])), W[j - 16]);
-        var T1 = safeAdd(safeAdd(safeAdd(safeAdd(h, S1(e)), Ch(e, f, g)), K[j]), W[j]);
-        var T2 = safeAdd(S0(a), Maj(a, b, c));
-        h = g; g = f; f = e; e = safeAdd(d, T1); d = c; c = b; b = a; a = safeAdd(T1, T2);
-      }
-      H[0] = safeAdd(a, H[0]); H[1] = safeAdd(b, H[1]); H[2] = safeAdd(c, H[2]); H[3] = safeAdd(d, H[3]);
-      H[4] = safeAdd(e, H[4]); H[5] = safeAdd(f, H[5]); H[6] = safeAdd(g, H[6]); H[7] = safeAdd(h, H[7]);
-    }
-    var hex = "";
-    for (var k = 0; k < 8; k++) {
-      var v = H[k];
-      hex += ("0" + ((v >>> 24) & 0xFF).toString(16)).slice(-2) +
-             ("0" + ((v >>> 16) & 0xFF).toString(16)).slice(-2) +
-             ("0" + ((v >>> 8) & 0xFF).toString(16)).slice(-2) +
-             ("0" + (v & 0xFF).toString(16)).slice(-2);
-    }
-    return hex;
-  }
-  function getUsers() {
-    try { return JSON.parse(localStorage.getItem(USERS_KEY)) || {}; } catch (e) { return {}; }
-  }
-  function setUsers(u) { localStorage.setItem(USERS_KEY, JSON.stringify(u)); }
-  // 免密码：输入用户名即可进入，不存在则自动创建
-  function ensureUser(username) {
-    return new Promise(function (resolve) {
-      username = (username || "").trim();
-      if (!username) { resolve(false); return; }
-      var users = getUsers();
-      if (!users[username]) {
-        users[username] = { created: new Date().toISOString() };
-        setUsers(users);
-        localStorage.setItem(storeKeyFor(username), JSON.stringify({ records: {}, tasks: {}, plan: null, recDismiss: {} }));
-      }
-      resolve(true);
-    });
-  }
-  function logoutUser() {
-    localStorage.removeItem(SESSION_KEY);
-    currentUser = null;
-    data = { records: {}, tasks: {}, plan: null, recDismiss: {} };
-    showAuth();
-  }
+  /* ---------- 账户与鉴权（无登录版 v2.2.0 已移除） ---------- */
 
   /* ---------- 日期工具 ---------- */
   function fmt(d) {
@@ -281,6 +213,33 @@
     }
     renderTasks();
     renderRecommend();
+    renderTodayActions();
+  }
+
+  /* 今日动作记录：把今天做过的动作（含重量/组数/次数）展示出来 */
+  function renderTodayActions() {
+    var tk = todayKey();
+    var r = getRecord(tk);
+    var box = $("todayActions");
+    var title = $("todayActionsTitle");
+    box.innerHTML = "";
+    if (!r || !r.actions || !r.actions.length) { title.hidden = true; return; }
+    title.hidden = false;
+    r.actions.forEach(function (a) { box.appendChild(actionRow(a)); });
+  }
+  /* 动作记录行（打卡记录里复用） */
+  function actionRow(a) {
+    var meta = [];
+    if (a.w) meta.push(a.w + "kg");
+    if (a.s) meta.push(a.s + "组");
+    if (a.r) meta.push("×" + a.r);
+    var row = document.createElement("div");
+    row.className = "today-action" + (a.done ? " done" : "");
+    row.innerHTML =
+      '<span class="da-check">' + (a.done ? "✓" : "") + '</span>' +
+      '<div class="da-main"><div class="da-text">' + escapeHtml(a.text) + '</div>' +
+      (meta.length ? '<div class="da-meta">' + meta.join(" · ") + '</div>' : '') + '</div>';
+    return row;
   }
 
   /* 按星期几推荐今日训练（横幅） */
@@ -351,7 +310,10 @@
         '<div class="tc-label">当前动作</div>' +
         '<div class="tc-text">' + escapeHtml(cur.text) + '</div>' +
         taskFieldsHtml(cur) +
-        '<button class="tc-btn" data-id="' + cur.id + '">完成 ✓</button>';
+        '<div class="tc-actions">' +
+        '<button class="tc-replace" data-id="' + cur.id + '">更换动作</button>' +
+        '<button class="tc-btn" data-id="' + cur.id + '">完成 ✓</button>' +
+        '</div>';
       curBox.appendChild(c);
     } else if (tasks.length) {
       var all = document.createElement("div");
@@ -373,6 +335,7 @@
       row.innerHTML =
         '<button class="task-check' + (t.done ? " on" : "") + '" data-id="' + t.id + '">' + (t.done ? "✓" : "") + '</button>' +
         '<div class="task-text">' + escapeHtml(t.text) + '</div>' +
+        '<button class="task-replace" data-id="' + t.id + '">更换</button>' +
         '<button class="task-del" data-id="' + t.id + '">✕</button>' +
         taskFieldsHtml(t);
       list.appendChild(row);
@@ -425,6 +388,55 @@
     data.tasks[tk] = getTasks(tk).filter(function (t) { return t.id !== id; });
     save();
     renderTasks();
+  }
+
+  /* ---------- 更换动作 ---------- */
+  var replaceTargetId = null;
+  function openReplace(id) {
+    replaceTargetId = id;
+    var tk = todayKey();
+    var tasks = getTasks(tk);
+    var cur = null;
+    for (var i = 0; i < tasks.length; i++) { if (tasks[i].id === id) { cur = tasks[i]; break; } }
+    var list = $("replaceList");
+    list.innerHTML = "";
+    if (data.plan && data.plan.days) {
+      data.plan.days.forEach(function (d) {
+        var head = document.createElement("div");
+        head.className = "replace-day";
+        head.textContent = d.name;
+        list.appendChild(head);
+        d.items.forEach(function (it) {
+          var row = document.createElement("div");
+          row.className = "replace-item";
+          row.textContent = it;
+          if (cur && cur.text === it) row.classList.add("same");
+          row.addEventListener("click", function () { doReplace(it); });
+          list.appendChild(row);
+        });
+      });
+    }
+    $("replaceCustom").value = "";
+    $("replaceOverlay").hidden = false;
+  }
+  function closeReplace() { $("replaceOverlay").hidden = true; replaceTargetId = null; }
+  function doReplace(newText) {
+    if (!replaceTargetId) return;
+    var tasks = getTasks(todayKey());
+    for (var i = 0; i < tasks.length; i++) {
+      if (tasks[i].id === replaceTargetId) {
+        var p = parsePlanItem(newText);
+        tasks[i].text = newText;
+        tasks[i].w = "";
+        tasks[i].s = p.s != null ? String(p.s) : "";
+        tasks[i].r = p.r != null ? String(p.r) : "";
+        break;
+      }
+    }
+    save();
+    closeReplace();
+    renderTasks();
+    toast("已更换动作");
   }
 
   /* ---------- 渲染：日历 ---------- */
@@ -488,6 +500,14 @@
       '</div><div class="ex-meta">共 ' + r.exercises.length + ' 项 · ' + dayDuration(k) + ' 分钟</div></div>';
     box.appendChild(head);
     r.exercises.forEach(function (ex) { box.appendChild(exRow(ex)); });
+    /* 今日做过的动作内容（重量/组数/次数） */
+    if (r.actions && r.actions.length) {
+      var aHead = document.createElement("div");
+      aHead.className = "day-row day-actions-head";
+      aHead.innerHTML = '<div class="ex-main"><div class="ex-name">今日动作</div></div>';
+      box.appendChild(aHead);
+      r.actions.forEach(function (a) { box.appendChild(actionRow(a)); });
+    }
   }
 
   /* ---------- 弹层：记录运动 ---------- */
@@ -573,6 +593,11 @@
     var rec = ensureRecord(editDate);
     if (editDate === todayKey()) {
       rec.checkedIn = true;
+      /* 把今天做过的动作内容（含重量/组数/次数）一并写入打卡记录 */
+      var tasks = getTasks(todayKey());
+      rec.actions = tasks.map(function (t) {
+        return { text: t.text, w: t.w, s: t.s, r: t.r, done: t.done };
+      });
     } else {
       rec.checkedIn = rec.exercises.length > 0;
     }
@@ -829,12 +854,156 @@
     toast("数据已导出");
   }
 
+  /* ============================================================
+     分步打卡向导（一次一个动作 + 滚轮调重量/组数/次数）
+     ============================================================ */
+  var WEIGHTS = []; for (var wv = 0; wv <= 200; wv += 2.5) WEIGHTS.push(Math.round(wv * 10) / 10);
+  var SETS = []; for (var sv = 1; sv <= 10; sv++) SETS.push(sv);
+  var REPS = []; for (var rv = 1; rv <= 30; rv++) REPS.push(rv);
+
+  var wizTasks = [];
+  var wizIndex = 0;
+  var wizEmpty = false;
+
+  function numOr(v, def) { var n = parseFloat(v); return isNaN(n) ? def : n; }
+
+  function openWizard(k) {
+    var tasks = getTasks(k);
+    wizTasks = tasks;
+    wizIndex = 0;
+    var btn = $("wizNext");
+    if (!tasks.length) {
+      // 休息日 / 未安排：直接打卡
+      wizEmpty = true;
+      $("wizBody").classList.add("empty");
+      $("wizActionName").textContent = "今天没有安排动作";
+      $("wizActionMeta").textContent = "点击「完成打卡」记录今天的状态，或返回去添加动作。";
+      $("wizProgress").innerHTML = "";
+      $("wizCount").textContent = "";
+      btn.textContent = "完成打卡";
+      btn.classList.add("finish");
+      $("wizard").hidden = false;
+      return;
+    }
+    wizEmpty = false;
+    $("wizBody").classList.remove("empty");
+    btn.classList.remove("finish");
+    $("wizard").hidden = false;
+    renderWizardStep();
+  }
+
+  function renderWizardStep() {
+    var total = wizTasks.length;
+    var prog = $("wizProgress");
+    prog.innerHTML = "";
+    for (var i = 0; i < total; i++) {
+      var d = document.createElement("div");
+      d.className = "wiz-dot" + (i <= wizIndex ? " on" : "");
+      prog.appendChild(d);
+    }
+    $("wizCount").textContent = (wizIndex + 1) + " / " + total;
+    var t = wizTasks[wizIndex];
+    $("wizActionName").textContent = t.text;
+    var meta = [];
+    if (t.w) meta.push(t.w + "kg");
+    if (t.s) meta.push(t.s + "组");
+    if (t.r) meta.push("×" + t.r);
+    $("wizActionMeta").innerHTML = meta.length
+      ? "预设 <b>" + meta.join(" · ") + "</b>，可滑动滚轮微调"
+      : "可滑动滚轮设置重量 / 组数 / 次数";
+    buildWheel("wheelItemsW", "wheelW", WEIGHTS, numOr(t.w, 0));
+    buildWheel("wheelItemsS", "wheelS", SETS, numOr(t.s, 1));
+    buildWheel("wheelItemsR", "wheelR", REPS, numOr(t.r, 1));
+    var btn = $("wizNext");
+    if (wizIndex === total - 1) { btn.textContent = "完成"; btn.classList.add("finish"); }
+    else { btn.textContent = "下一个"; btn.classList.remove("finish"); }
+  }
+
+  function buildWheel(itemsElId, wheelElId, values, initial) {
+    var box = $(itemsElId);
+    box.innerHTML = "";
+    var initIdx = 0;
+    values.forEach(function (v, i) {
+      var d = document.createElement("div");
+      var isSel = (String(v) === String(initial));
+      d.className = "wheel-item" + (isSel ? " sel" : "");
+      d.textContent = (wheelElId === "wheelW")
+        ? (Math.round(v * 10) / 10 % 1 === 0 ? v : (Math.round(v * 10) / 10).toFixed(1))
+        : v;
+      box.appendChild(d);
+      if (isSel) initIdx = i;
+    });
+    var wheel = $(wheelElId);
+    wheel.scrollTop = initIdx * 44;
+    requestAnimationFrame(function () { wheel.scrollTop = initIdx * 44; });
+    wheel.onscroll = function () {
+      var idx = Math.round(wheel.scrollTop / 44);
+      idx = Math.max(0, Math.min(values.length - 1, idx));
+      var items = box.children;
+      for (var i = 0; i < items.length; i++) items[i].classList.toggle("sel", i === idx);
+      commitWheel(wheelElId, values[idx]);
+    };
+  }
+
+  function commitWheel(wheelElId, val) {
+    if (wizEmpty || !wizTasks.length) return;
+    var t = wizTasks[wizIndex];
+    if (wheelElId === "wheelW") t.w = (val === 0 ? "" : val);
+    else if (wheelElId === "wheelS") t.s = val;
+    else if (wheelElId === "wheelR") t.r = val;
+    save();
+  }
+
+  function nextStep() {
+    if (wizEmpty || !wizTasks.length) { finishWizard(); return; }
+    if (wizIndex < wizTasks.length - 1) { wizIndex++; renderWizardStep(); }
+    else { finishWizard(); }
+  }
+
+  function finishWizard() {
+    var rec = ensureRecord(todayKey());
+    if (wizEmpty || !wizTasks.length) {
+      rec.checkedIn = true;
+      rec.actions = [];
+    } else {
+      wizTasks.forEach(function (t) { t.done = true; });
+      rec.checkedIn = true;
+      rec.actions = wizTasks.map(function (t) {
+        return { text: t.text, w: t.w, s: t.s, r: t.r, done: true };
+      });
+    }
+    save();
+    showWizardDone();
+  }
+
+  function showWizardDone() {
+    var body = $("wizBody");
+    body.className = "wiz-body";
+    body.innerHTML =
+      '<div class="wiz-done">' +
+      '<div class="wiz-done-ico">✓</div>' +
+      '<div class="wiz-done-title">今日打卡完成！</div>' +
+      '<div class="wiz-done-sub">已记录 ' + (wizTasks.length || 0) + ' 个动作，继续加油 💪</div></div>';
+    $("wizProgress").innerHTML = "";
+    $("wizCount").textContent = "";
+    $("wizBack").style.visibility = "hidden";
+    $("wizNext").style.display = "none";
+    setTimeout(function () { closeWizard(); refreshAll(); toast("打卡成功 🔥"); }, 1300);
+  }
+
+  function closeWizard() {
+    $("wizard").hidden = true;
+    $("wizNext").style.display = "";
+    $("wizBack").style.visibility = "visible";
+    wizTasks = []; wizIndex = 0; wizEmpty = false;
+  }
+
   /* ---------- 事件绑定 ---------- */
   function bind() {
     document.querySelectorAll(".nav-btn").forEach(function (b) {
       b.addEventListener("click", function () { showTab(b.dataset.tab); });
     });
-    $("checkinBtn").addEventListener("click", function () { openSheet(todayKey()); });
+    $("checkinBtn").addEventListener("click", function () { openWizard(todayKey()); });
     $("calPrev").addEventListener("click", function () { calMonth--; if (calMonth < 0) { calMonth = 11; calYear--; } renderCalendar(); });
     $("calNext").addEventListener("click", function () { calMonth++; if (calMonth > 11) { calMonth = 0; calYear++; } renderCalendar(); });
     $("sheetClose").addEventListener("click", closeSheet);
@@ -856,11 +1025,24 @@
       var id = btn.getAttribute("data-id");
       if (btn.classList.contains("task-check")) toggleTask(id);
       else if (btn.classList.contains("task-del")) deleteTask(id);
+      else if (btn.classList.contains("task-replace")) openReplace(id);
     });
     $("taskCurrent").addEventListener("click", function (e) {
       var btn = e.target.closest ? e.target.closest("button") : null;
-      if (btn && btn.classList.contains("tc-btn")) toggleTask(btn.getAttribute("data-id"));
+      if (!btn) return;
+      var id = btn.getAttribute("data-id");
+      if (btn.classList.contains("tc-btn")) toggleTask(id);
+      else if (btn.classList.contains("tc-replace")) openReplace(id);
     });
+    /* 更换动作弹层 */
+    $("replaceClose").addEventListener("click", closeReplace);
+    $("replaceOverlay").addEventListener("click", function (e) { if (e.target === $("replaceOverlay")) closeReplace(); });
+    $("replaceCustomBtn").addEventListener("click", function () {
+      var v = $("replaceCustom").value.trim();
+      if (!v) { toast("请输入自定义动作"); return; }
+      doReplace(v);
+    });
+    $("replaceCustom").addEventListener("keydown", function (e) { if (e.key === "Enter") { var v = e.target.value.trim(); if (v) doReplace(v); } });
     /* 当前动作卡片里的重量/组数/次数输入 */
     $("taskCurrent").addEventListener("input", function (e) {
       onTaskFieldInput(e);
@@ -887,12 +1069,14 @@
     window.addEventListener("resize", function () {
       if ($("panel-stats").classList.contains("active")) renderStats();
     });
-    /* 登录 / 退出（免密码：仅用户名） */
-    $("authSubmit").addEventListener("click", submitAuth);
-    $("authUser").addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); submitAuth(); } });
-    $("logoutBtn").addEventListener("click", function () {
-      if (confirm("退出当前账号？本机数据仍保留，可重新登录。")) logoutUser();
+    /* 分步打卡向导 */
+    $("wizNext").addEventListener("click", nextStep);
+    $("wizBack").addEventListener("click", function () {
+      if (wizEmpty || !wizTasks.length) { closeWizard(); return; }
+      if (wizIndex > 0) { wizIndex--; renderWizardStep(); }
+      else { closeWizard(); }
     });
+    /* 无登录版：无登录相关事件 */
   }
 
   /* ---------- 启动与鉴权流程 ---------- */
@@ -901,51 +1085,38 @@
     boot();
   }
   function boot() {
-    var sess = localStorage.getItem(SESSION_KEY);
-    if (sess && getUsers()[sess]) {
-      currentUser = sess;
-      enterApp();
-    } else {
-      if (sess) localStorage.removeItem(SESSION_KEY);
-      showAuth();
-    }
+    enterApp();
   }
   function enterApp() {
     load();
     ensurePlan();
+    autoScheduleToday();
     renderToday();
     renderCalendar();
-    updateUserBadge();
-    hideAuth();
+    try { $("appVersion").textContent = "v" + APP_VERSION; } catch (e) {}
   }
-  function showAuth() {
-    $("authScreen").hidden = false;
-    $("app").style.display = "none";
-    $("authErr").textContent = "";
-    $("authUser").value = "";
-    try { $("authVersion").textContent = "v" + APP_VERSION; } catch (e) {}
-    setTimeout(function () { try { $("authUser").focus(); } catch (e) {} }, 50);
+
+  /* 根据周计划 + 星期几，自动安排今日任务（仅当今日尚无任务时执行，避免覆盖手动改动） */
+  function buildTaskFromPlanItem(it) {
+    var p = parsePlanItem(it);
+    return {
+      id: "t" + Date.now() + Math.floor(Math.random() * 1000),
+      text: it, done: false, src: "plan",
+      w: "", s: p.s != null ? String(p.s) : "", r: p.r != null ? String(p.r) : ""
+    };
   }
-  function hideAuth() {
-    $("authScreen").hidden = true;
-    $("app").style.display = "block";
-  }
-  function updateUserBadge() {
-    $("userName").textContent = currentUser || "";
-  }
-  function submitAuth() {
-    var u = $("authUser").value.trim();
-    if (!u) { $("authErr").textContent = "请输入用户名"; return; }
-    $("authErr").textContent = "";
-    ensureUser(u).then(function (ok) {
-      if (ok) {
-        localStorage.setItem(SESSION_KEY, u);
-        currentUser = u;
-        enterApp();
-      } else {
-        $("authErr").textContent = "请输入用户名";
-      }
-    });
+  function autoScheduleToday() {
+    var tk = todayKey();
+    var tasks = getTasks(tk);
+    if (tasks.length) return;                       // 今日已有任务（手动或已排），不覆盖
+    if (data.recDismiss && data.recDismiss[tk]) return; // 用户曾忽略推荐
+    var now = new Date();
+    var sc = SCHEDULE[now.getDay()];
+    if (!sc || sc.type !== "train") return;          // 休息日不自动排训练
+    var day = getPlanDay(sc.day);
+    if (!day) return;
+    data.tasks[tk] = day.items.map(buildTaskFromPlanItem);
+    save();
   }
 
   if (document.readyState === "loading") {

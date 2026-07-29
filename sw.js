@@ -1,5 +1,5 @@
 /* 健身打卡 Service Worker — 离线缓存应用外壳 */
-var CACHE = "fitness-checkin-v3";
+var CACHE = "fitness-checkin-v7";
 var SHELL = [
   "index.html",
   "css/style.css",

@@ -9,24 +9,12 @@
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="icon.svg" />
-  <link rel="stylesheet" href="css/style.css?v=210" />
+  <link rel="stylesheet" href="css/style.css?v=400" />
 </head>
 <body>
-  <!-- 登录（免密码：仅用户名） -->
-  <div id="authScreen" class="auth-screen">
-    <div class="auth-card">
-      <div class="auth-logo">🧚</div>
-      <div class="auth-title">健身打卡</div>
-      <div class="auth-sub">输入用户名即可进入，自动创建账号，数据保存在本机</div>
-      <input type="text" id="authUser" class="auth-input" placeholder="用户名" autocomplete="username" />
-      <div class="auth-err" id="authErr"></div>
-      <button class="auth-submit" id="authSubmit">进入</button>
-      <div class="auth-hint">多用户版：同一设备可切换不同账号，数据各自独立保存在本机。</div>
-      <div class="auth-version" id="authVersion">v—</div>
-    </div>
-  </div>
+  <!-- 登录已移除（无登录版 v2.2.0）：打开即进入主界面 -->
 
-  <div id="app" style="display:none">
+  <div id="app">
     <header class="app-header">
       <div class="header-top">
         <div class="header-titles">
@@ -34,8 +22,7 @@
           <div class="header-title">健身打卡</div>
         </div>
         <div class="header-user">
-          <span class="user-name" id="userName"></span>
-          <button class="logout-btn" id="logoutBtn">退出</button>
+          <span class="app-version" id="appVersion" style="font-size:12px;opacity:0.7"></span>
         </div>
       </div>
     </header>
@@ -75,6 +62,9 @@
 
         <div class="section-title">今日运动</div>
         <div class="today-list" id="todayList"></div>
+
+        <div class="section-title" id="todayActionsTitle" hidden>今日动作记录</div>
+        <div class="today-actions" id="todayActions"></div>
       </section>
 
       <!-- 日历 -->
@@ -164,6 +154,28 @@
     </nav>
   </div>
 
+  <!-- 分步打卡向导（点击「今日打卡」进入） -->
+  <div class="wizard" id="wizard" hidden>
+    <div class="wiz-top">
+      <button class="wiz-back" id="wizBack">‹ 返回</button>
+      <div class="wiz-progress" id="wizProgress"></div>
+      <div class="wiz-count" id="wizCount"></div>
+    </div>
+    <div class="wiz-body" id="wizBody">
+      <div class="wiz-action-name" id="wizActionName"></div>
+      <div class="wiz-action-meta" id="wizActionMeta"></div>
+      <div class="wiz-wheels">
+        <div class="wheel" id="wheelW"><div class="wheel-items" id="wheelItemsW"></div></div>
+        <div class="wheel" id="wheelS"><div class="wheel-items" id="wheelItemsS"></div></div>
+        <div class="wheel" id="wheelR"><div class="wheel-items" id="wheelItemsR"></div></div>
+      </div>
+      <div class="wiz-wheel-labels"><span>重量(kg)</span><span>组数</span><span>次数</span></div>
+    </div>
+    <div class="wiz-foot">
+      <button class="wiz-next" id="wizNext">下一个</button>
+    </div>
+  </div>
+
   <!-- 打卡记录弹层 -->
   <div class="sheet-overlay" id="sheetOverlay" hidden>
     <div class="sheet" id="sheet">
@@ -206,8 +218,28 @@
     </div>
   </div>
 
+  <!-- 更换动作弹层 -->
+  <div class="sheet-overlay" id="replaceOverlay" hidden>
+    <div class="sheet" id="replaceSheet">
+      <div class="sheet-handle"></div>
+      <div class="sheet-head">
+        <div class="sheet-title">更换动作</div>
+        <button class="sheet-close" id="replaceClose">✕</button>
+      </div>
+      <div class="sheet-body">
+        <div class="field-label">选择一个动作替换当前项</div>
+        <div class="replace-list" id="replaceList"></div>
+        <div class="field-label" style="margin-top:16px">或自定义动作</div>
+        <div class="replace-custom">
+          <input type="text" id="replaceCustom" placeholder="如 哑铃弯举 3组×12" maxlength="40" />
+          <button id="replaceCustomBtn">替换</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div class="toast" id="toast" hidden></div>
 
-  <script src="js/app.js?v=210"></script>
+  <script src="js/app.js?v=400"></script>
 </body>
 </html>

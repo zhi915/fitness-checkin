@@ -64,10 +64,12 @@
     ]
   };
 
+  /* ---------- 应用版本（用于登录页标识，确认是否运行最新版） ---------- */
+  var APP_VERSION = "2.1.0";
+
   /* ---------- 数据层（多用户：每用户独立存储） ---------- */
   var USERS_KEY = "fitapp_users";
   var SESSION_KEY = "fitapp_session";
-  var authMode = "login";
   var currentUser = null;
   var data = { records: {}, tasks: {}, plan: null, recDismiss: {} };
 
@@ -89,16 +91,8 @@
     try { localStorage.setItem(storeKeyFor(currentUser), JSON.stringify(data)); } catch (e) {}
   }
 
-  /* ---------- 账户与鉴权（前端多账户；密码经 SHA-256 多次迭代哈希，无外部依赖、任意环境可用） ---------- */
-  function randHex(n) {
-    var b = new Uint8Array(n);
-    if (window.crypto && crypto.getRandomValues) crypto.getRandomValues(b);
-    else for (var i = 0; i < n; i++) b[i] = Math.floor(Math.random() * 256);
-    var s = "";
-    for (var j = 0; j < n; j++) s += ("0" + b[j].toString(16)).slice(-2);
-    return s;
-  }
-  /* 纯 JS SHA-256（无需 secure context，本地 / 局域网 / file 均可运行） */
+  /* ---------- 账户与鉴权（前端多账户；仅用户名，无密码） ---------- */
+  /* 纯 JS SHA-256（保留备用，无需 secure context，本地 / 局域网 / file 均可运行） */
   function sha256(s) {
     function S(X, n) { return (X >>> n) | (X << (32 - n)); }
     function R(X, n) { return (X >>> n); }
@@ -139,34 +133,23 @@
     }
     return hex;
   }
-  function pwHash(pw, saltHex) {
-    var h = saltHex + "|" + pw;
-    for (var i = 0; i < 5000; i++) h = sha256(h);
-    return h;
-  }
   function getUsers() {
     try { return JSON.parse(localStorage.getItem(USERS_KEY)) || {}; } catch (e) { return {}; }
   }
   function setUsers(u) { localStorage.setItem(USERS_KEY, JSON.stringify(u)); }
-  function registerUser(username, pw) {
+  // 免密码：输入用户名即可进入，不存在则自动创建
+  function ensureUser(username) {
     return new Promise(function (resolve) {
       username = (username || "").trim();
-      if (!username) { toast("请输入用户名"); return resolve(false); }
-      if (pw.length < 4) { toast("密码至少 4 位"); return resolve(false); }
+      if (!username) { resolve(false); return; }
       var users = getUsers();
-      if (users[username]) { toast("该用户名已存在"); return resolve(false); }
-      var salt = randHex(16);
-      users[username] = { salt: salt, hash: pwHash(pw, salt) };
-      setUsers(users);
-      localStorage.setItem(storeKeyFor(username), JSON.stringify({ records: {}, tasks: {}, plan: null, recDismiss: {} }));
+      if (!users[username]) {
+        users[username] = { created: new Date().toISOString() };
+        setUsers(users);
+        localStorage.setItem(storeKeyFor(username), JSON.stringify({ records: {}, tasks: {}, plan: null, recDismiss: {} }));
+      }
       resolve(true);
     });
-  }
-  function verifyUser(username, pw) {
-    var users = getUsers();
-    var u = users[(username || "").trim()];
-    if (!u) return Promise.resolve(false);
-    return Promise.resolve(pwHash(pw, u.salt) === u.hash);
   }
   function logoutUser() {
     localStorage.removeItem(SESSION_KEY);
@@ -904,19 +887,9 @@
     window.addEventListener("resize", function () {
       if ($("panel-stats").classList.contains("active")) renderStats();
     });
-    /* 登录 / 注册 / 退出 */
-    document.querySelectorAll(".auth-tab").forEach(function (b) {
-      b.addEventListener("click", function () {
-        authMode = b.getAttribute("data-mode");
-        document.querySelectorAll(".auth-tab").forEach(function (x) { x.classList.remove("active"); });
-        b.classList.add("active");
-        $("authSubmit").textContent = (authMode === "register") ? "注册并进入" : "登录";
-        $("authErr").textContent = "";
-      });
-    });
+    /* 登录 / 退出（免密码：仅用户名） */
     $("authSubmit").addEventListener("click", submitAuth);
-    $("authPass").addEventListener("keydown", function (e) { if (e.key === "Enter") submitAuth(); });
-    $("authUser").addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); $("authPass").focus(); } });
+    $("authUser").addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); submitAuth(); } });
     $("logoutBtn").addEventListener("click", function () {
       if (confirm("退出当前账号？本机数据仍保留，可重新登录。")) logoutUser();
     });
@@ -950,7 +923,7 @@
     $("app").style.display = "none";
     $("authErr").textContent = "";
     $("authUser").value = "";
-    $("authPass").value = "";
+    try { $("authVersion").textContent = "v" + APP_VERSION; } catch (e) {}
     setTimeout(function () { try { $("authUser").focus(); } catch (e) {} }, 50);
   }
   function hideAuth() {
@@ -962,28 +935,17 @@
   }
   function submitAuth() {
     var u = $("authUser").value.trim();
-    var p = $("authPass").value;
-    if (!u || !p) { $("authErr").textContent = "请输入用户名和密码"; return; }
+    if (!u) { $("authErr").textContent = "请输入用户名"; return; }
     $("authErr").textContent = "";
-    if (authMode === "register") {
-      registerUser(u, p).then(function (ok) {
-        if (ok) {
-          localStorage.setItem(SESSION_KEY, u);
-          currentUser = u;
-          enterApp();
-        }
-      });
-    } else {
-      verifyUser(u, p).then(function (ok) {
-        if (ok) {
-          localStorage.setItem(SESSION_KEY, u);
-          currentUser = u;
-          enterApp();
-        } else {
-          $("authErr").textContent = "用户名或密码错误";
-        }
-      });
-    }
+    ensureUser(u).then(function (ok) {
+      if (ok) {
+        localStorage.setItem(SESSION_KEY, u);
+        currentUser = u;
+        enterApp();
+      } else {
+        $("authErr").textContent = "请输入用户名";
+      }
+    });
   }
 
   if (document.readyState === "loading") {

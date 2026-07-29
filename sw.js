@@ -1,5 +1,5 @@
 /* 健身打卡 Service Worker — 离线缓存应用外壳 */
-var CACHE = "fitness-checkin-v2";
+var CACHE = "fitness-checkin-v3";
 var SHELL = [
   "index.html",
   "css/style.css",
@@ -28,6 +28,20 @@ self.addEventListener("activate", function (e) {
 
 self.addEventListener("fetch", function (e) {
   if (e.request.method !== "GET") return;
+  var url = new URL(e.request.url);
+  var isHtml = e.request.mode === "navigate" || url.pathname.endsWith("index.html") || url.pathname.endsWith("/");
+  // 首页走网络优先：刷新即拿最新版（离线时回退缓存）
+  if (isHtml) {
+    e.respondWith(
+      fetch(e.request).then(function (res) {
+        var copy = res.clone();
+        caches.open(CACHE).then(function (c) { c.put(e.request, copy); });
+        return res;
+      }).catch(function () { return caches.match("index.html"); })
+    );
+    return;
+  }
+  // 静态资源：缓存优先（已加 ?v 版本参数，版本变更即拉新）
   e.respondWith(
     caches.match(e.request).then(function (cached) {
       if (cached) return cached;

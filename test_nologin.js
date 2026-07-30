@@ -1,0 +1,57 @@
+/* 无登录版自测：打开即进入主界面，无登录页，核心功能可运行 */
+const fs = require("fs");
+const path = require("path");
+const { JSDOM } = require("jsdom");
+
+const root = __dirname;
+let html = fs.readFileSync(path.join(root, "index.html"), "utf8");
+const appjs = fs.readFileSync(path.join(root, "js", "app.js"), "utf8");
+
+// 剥掉外部 css / 外部 script（避免 jsdom 去 fetch 网络资源），改为内联 app.js
+html = html.replace(/<link[^>]*stylesheet[^>]*>/g, "");
+html = html.replace(/<script src="js\/app\.js[^"]*"><\/script>/g, "");
+html = html.replace("</body>", "<script>\n" + appjs + "\n</script></body>");
+
+const dom = new JSDOM(html, {
+  runScripts: "dangerously",
+  url: "http://localhost/",
+  pretendToBeVisual: true,
+});
+const { window } = dom;
+const doc = window.document;
+
+let fail = 0;
+function assert(c, m) {
+  if (c) console.log("✓ " + m);
+  else { console.log("✗ " + m); fail++; }
+}
+
+// 给一个内存版 localStorage（部分 jsdom 默认无），确保 load/save 正常工作
+if (!window.localStorage) {
+  const store = {};
+  window.localStorage = {
+    getItem: (k) => (k in store ? store[k] : null),
+    setItem: (k, v) => { store[k] = String(v); },
+    removeItem: (k) => { delete store[k]; },
+  };
+}
+
+setTimeout(function () {
+  assert(!doc.getElementById("authScreen"), "登录页 authScreen 已彻底移除");
+  const app = doc.getElementById("app");
+  assert(!!app, "主界面 #app 存在");
+  assert(!/display\s*:\s*none/.test(app.getAttribute("style") || ""), "#app 没有 display:none（默认可见）");
+  const ver = doc.getElementById("appVersion");
+  assert(ver && /2\.2\.0/.test(ver.textContent), "顶栏版本号显示 v2.2.0（实际：" + (ver && ver.textContent) + "）");
+  const reco = doc.getElementById("recoBanner");
+  assert(reco && !reco.hidden && reco.innerHTML.length > 0, "今日推荐横幅已渲染");
+  // 模拟点击“今日打卡”能否打开记录弹层
+  const sheet = doc.getElementById("sheetOverlay");
+  doc.getElementById("checkinBtn").dispatchEvent(new window.Event("click"));
+  assert(sheet && !sheet.hidden, "点击打卡按钮可打开记录弹层");
+  // 退出/切换按钮应不存在
+  assert(!doc.getElementById("logoutBtn"), "不存在“退出”按钮（无登录）");
+
+  console.log("\n结果：" + (fail === 0 ? "全部通过 ✅" : fail + " 项失败 ❌"));
+  process.exit(fail === 0 ? 0 : 1);
+}, 200);

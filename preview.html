@@ -1,3 +1,772 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#11998e" />
+  <meta name="description" content="健身打卡 - 记录每一次坚持" />
+  <title>健身打卡</title>
+  
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  
+  <style>
+:root {
+  --primary: #0F6E56;       /* teal 600 */
+  --primary-50: #E6F4EF;    /* teal tint */
+  --primary-100: #CDE7DE;
+  --green: #3B6D11;
+  --bg: #F7F8FA;
+  --card: #FFFFFF;
+  --text: #111827;
+  --text-sub: #6B7280;
+  --text-hint: #9CA3AF;
+  --line: #E5E7EB;
+  --line-soft: #F0F2F4;
+  --danger: #A32D2D;
+  --radius: 16px;
+  --radius-sm: 12px;
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+html, body {
+  margin: 0; padding: 0;
+  background: #E9ECEF;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+}
+
+#app {
+  max-width: 480px;
+  margin: 0 auto;
+  min-height: 100vh;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+/* ===== Header（扁平白底，青绿强调） ===== */
+.app-header {
+  background: var(--card);
+  color: var(--text);
+  padding: calc(env(safe-area-inset-top) + 18px) 22px 16px;
+  border-bottom: 1px solid var(--line);
+}
+.header-top { display: flex; align-items: flex-start; justify-content: space-between; }
+.header-sub { font-size: 13px; color: var(--text-sub); }
+.header-title { font-size: 24px; font-weight: 700; margin-top: 2px; letter-spacing: 0.5px; }
+.header-user { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+.app-version { font-size: 12px; color: var(--text-hint); }
+
+/* ===== Content ===== */
+.content { flex: 1; overflow-y: auto; padding: 18px 16px 96px; }
+.tab-panel { display: none; animation: fade 0.22s ease; }
+.tab-panel.active { display: block; }
+@keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+.section-title { font-size: 15px; font-weight: 700; margin: 22px 4px 12px; color: var(--text); }
+
+/* ===== Hero（扁平浅青绿卡片） ===== */
+.hero-card {
+  background: var(--primary-50);
+  border: 1px solid var(--primary-100);
+  border-radius: var(--radius);
+  padding: 22px 22px 24px;
+  text-align: center;
+}
+.hero-greet { font-size: 16px; font-weight: 600; color: var(--primary); }
+.hero-stats { display: flex; justify-content: center; align-items: center; margin: 16px 0 18px; }
+.hstat { flex: 1; }
+.hstat-num { font-size: 32px; font-weight: 700; line-height: 1; color: var(--text); }
+.hstat-label { font-size: 12px; color: var(--text-sub); margin-top: 6px; }
+.hstat-divider { width: 1px; height: 36px; background: var(--primary-100); }
+
+.checkin-btn {
+  width: 100%;
+  border: none;
+  border-radius: 14px;
+  background: var(--primary);
+  color: #fff;
+  font-size: 18px;
+  font-weight: 700;
+  padding: 15px;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  cursor: pointer;
+  transition: transform 0.12s ease;
+}
+.checkin-btn:active { transform: scale(0.97); }
+.checkin-btn.done { background: var(--card); color: var(--primary); border: 1.5px solid var(--primary); }
+.checkin-emoji { font-size: 20px; }
+.hero-hint { font-size: 12px; color: var(--text-sub); margin-top: 12px; }
+
+/* ===== 今日运动记录 ===== */
+.today-list { display: flex; flex-direction: column; gap: 10px; }
+.ex-item {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 14px 16px;
+  display: flex; align-items: center; gap: 12px;
+}
+.ex-emoji { font-size: 24px; width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; background: var(--primary-50); }
+.ex-main { flex: 1; }
+.ex-name { font-weight: 600; font-size: 15px; }
+.ex-meta { font-size: 12px; color: var(--text-sub); margin-top: 3px; }
+.ex-empty { text-align: center; color: var(--text-sub); font-size: 13px; padding: 26px 0; }
+
+/* ===== 今日任务 ===== */
+.task-progress { font-size: 12px; color: var(--primary); font-weight: 700; margin-left: 6px; }
+.task-current { margin-bottom: 12px; }
+.task-current-card {
+  background: var(--card);
+  border: 1.5px solid var(--primary);
+  border-radius: 16px;
+  padding: 18px;
+  text-align: center;
+  animation: fade 0.22s ease;
+}
+.tc-label { font-size: 12px; color: var(--text-sub); }
+.tc-text { font-size: 20px; font-weight: 700; margin: 8px 0 14px; word-break: break-word; color: var(--text); }
+.tc-actions { display: flex; gap: 10px; justify-content: center; align-items: center; }
+.tc-replace { border: 1.5px solid var(--primary); background: #fff; color: var(--primary); font-size: 14px; font-weight: 600; padding: 11px 18px; border-radius: 12px; cursor: pointer; flex: 1; }
+.tc-replace:active { transform: scale(0.97); }
+.task-all-done { background: var(--primary-50); color: var(--primary); border-radius: 14px; padding: 16px; text-align: center; font-weight: 600; }
+.task-hint { color: var(--text-sub); font-size: 13px; padding: 4px 2px 12px; }
+.task-list { display: flex; flex-direction: column; gap: 8px; }
+.task-item { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
+.task-item.current { outline: 2px solid var(--primary); outline-offset: -2px; }
+.task-status { flex: 0 0 auto; font-size: 12px; font-weight: 700; padding: 4px 12px; border-radius: 999px; line-height: 1.4; }
+.task-status.done { background: var(--primary-50); color: var(--primary); border: 1px solid var(--primary); }
+.task-status.undone { background: #F0F2F1; color: var(--text-sub); border: 1px solid var(--line); }
+.task-text { flex: 1; font-size: 15px; word-break: break-word; min-width: 80px; }
+.task-item.done .task-text { color: var(--text-sub); text-decoration: line-through; }
+.task-del { border: none; background: none; color: #C9D2D0; font-size: 16px; cursor: pointer; padding: 0 2px; flex: 0 0 auto; }
+.task-replace { border: 1px solid var(--line); background: #F6F9F8; color: var(--text-sub); font-size: 12px; padding: 4px 10px; border-radius: 999px; cursor: pointer; flex: 0 0 auto; }
+.task-replace:active { transform: scale(0.96); }
+.task-add { display: flex; gap: 8px; margin-top: 12px; }
+.task-add input { flex: 1; border: 1.5px solid var(--line); border-radius: 12px; padding: 11px 12px; font-size: 15px; outline: none; }
+.task-add input:focus { border-color: var(--primary); }
+.task-add button { border: none; background: var(--primary); color: #fff; border-radius: 12px; padding: 0 18px; font-weight: 700; font-size: 15px; cursor: pointer; }
+
+/* 重量/组数/次数 输入控件 */
+.task-fields { flex-basis: 100%; display: flex; gap: 8px; margin-top: 10px; }
+.task-fields .tf { flex: 1; display: flex; flex-direction: column; gap: 3px; }
+.task-fields label { font-size: 11px; color: var(--text-sub); text-align: center; }
+.task-fields input { width: 100%; border: 1.5px solid var(--line); border-radius: 9px; padding: 8px 4px; font-size: 14px; text-align: center; outline: none; -moz-appearance: textfield; }
+.task-fields input:focus { border-color: var(--primary); }
+.task-fields input::-webkit-outer-spin-button, .task-fields input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+/* 今日动作记录 */
+.today-actions { display: flex; flex-direction: column; gap: 8px; }
+.today-action { display: flex; align-items: center; gap: 10px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
+.today-action.done .da-text { color: var(--text-sub); text-decoration: line-through; }
+.da-check { width: 22px; height: 22px; border-radius: 50%; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; font-size: 12px; color: #fff; background: var(--primary); }
+.today-action:not(.done) .da-check { background: var(--line); color: transparent; }
+.da-main { flex: 1; }
+.da-text { font-size: 14px; word-break: break-word; }
+.da-meta { font-size: 12px; color: var(--text-sub); margin-top: 2px; }
+
+/* ===== 推荐横幅 ===== */
+.reco-banner {
+  background: var(--primary-50);
+  border: 1px solid var(--primary-100);
+  border-radius: 16px;
+  padding: 13px 15px;
+  margin-bottom: 14px;
+  display: flex; align-items: center; gap: 10px;
+  animation: fade 0.22s ease;
+}
+.reco-banner[hidden] { display: none; }
+.reco-ico { font-size: 24px; flex: 0 0 auto; }
+.reco-main { flex: 1; min-width: 0; }
+.reco-title { font-size: 14px; font-weight: 700; color: var(--primary); }
+.reco-sub { font-size: 12px; color: var(--text-sub); margin-top: 2px; line-height: 1.4; }
+.reco-btn { border: none; background: var(--primary); color: #fff; border-radius: 12px; padding: 9px 15px; font-weight: 700; font-size: 13px; cursor: pointer; flex: 0 0 auto; }
+.reco-btn:active { transform: scale(0.97); }
+.reco-x { border: none; background: none; color: var(--text-hint); font-size: 18px; cursor: pointer; padding: 0 2px; flex: 0 0 auto; line-height: 1; }
+
+/* ===== 日历 ===== */
+.cal-card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; }
+.cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.cal-month { font-size: 17px; font-weight: 700; }
+.cal-nav { width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--line); background: #fff; font-size: 20px; color: var(--primary); cursor: pointer; }
+.cal-week { display: grid; grid-template-columns: repeat(7,1fr); text-align: center; font-size: 12px; color: var(--text-sub); margin-bottom: 8px; }
+.cal-grid { display: grid; grid-template-columns: repeat(7,1fr); gap: 4px; }
+.cal-cell { aspect-ratio: 1/1; display: flex; align-items: center; justify-content: center; position: relative; font-size: 14px; border-radius: 10px; color: var(--text); cursor: pointer; }
+.cal-cell.muted { color: #c9d2d0; }
+.cal-cell.today { font-weight: 700; }
+.cal-cell.today::after { content: ""; position: absolute; bottom: 5px; width: 4px; height: 4px; border-radius: 50%; background: var(--primary); }
+.cal-cell.done { background: var(--primary); color: #fff; font-weight: 600; }
+.cal-cell.done::after { background: #fff; }
+.cal-cell.selected { outline: 2px solid var(--primary); outline-offset: -2px; }
+.cal-cell.future { color: #d6dcdb; cursor: default; }
+.cal-legend { display: flex; gap: 16px; align-items: center; font-size: 12px; color: var(--text-sub); margin-top: 14px; }
+.dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 4px; vertical-align: middle; }
+.dot-done { background: var(--primary); }
+.dot-rest { background: var(--line); }
+
+.day-detail { display: flex; flex-direction: column; gap: 10px; }
+.day-row { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; display: flex; align-items: center; gap: 12px; }
+.day-empty { text-align: center; color: var(--text-sub); font-size: 13px; padding: 26px 0; }
+.day-actions-head { background: transparent; border: none; padding: 6px 4px 0; }
+.day-actions-head .ex-name { font-size: 13px; color: var(--text-sub); font-weight: 600; }
+
+/* ===== 统计 ===== */
+.summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.sum-card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; text-align: center; }
+.sum-num { font-size: 28px; font-weight: 700; color: var(--primary); }
+.sum-label { font-size: 12px; color: var(--text-sub); margin-top: 4px; }
+.chart-card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; margin-top: 14px; }
+.chart-title { font-size: 14px; font-weight: 700; margin-bottom: 12px; }
+.chart-canvas { width: 100%; height: 180px; display: block; }
+.type-dist { display: flex; flex-direction: column; gap: 12px; }
+.dist-row { display: flex; align-items: center; gap: 10px; }
+.dist-emoji { font-size: 20px; width: 30px; text-align: center; }
+.dist-name { width: 52px; font-size: 13px; }
+.dist-bar-wrap { flex: 1; height: 12px; background: var(--line-soft); border-radius: 6px; overflow: hidden; }
+.dist-bar { height: 100%; border-radius: 6px; transition: width 0.4s ease; }
+.dist-val { width: 40px; text-align: right; font-size: 12px; color: var(--text-sub); }
+.danger-zone { display: flex; gap: 12px; margin-top: 22px; }
+.btn-ghost { flex: 1; border: 1px solid var(--line); background: #fff; color: var(--text-sub); border-radius: 12px; padding: 12px; font-size: 14px; cursor: pointer; }
+.btn-ghost.danger { color: var(--danger); border-color: #F2D6D6; }
+
+/* ===== 底部导航 ===== */
+.bottom-nav {
+  position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
+  width: 100%; max-width: 480px;
+  background: rgba(255,255,255,0.97);
+  border-top: 1px solid var(--line);
+  display: flex;
+  padding: 8px 0 calc(env(safe-area-inset-bottom) + 8px);
+}
+.nav-btn { flex: 1; border: none; background: none; display: flex; flex-direction: column; align-items: center; gap: 3px; color: var(--text-sub); cursor: pointer; font-size: 11px; }
+.nav-ico { font-size: 21px; filter: grayscale(1); opacity: 0.6; }
+.nav-btn.active { color: var(--primary); }
+.nav-btn.active .nav-ico { filter: none; opacity: 1; }
+
+/* ===== 弹层（记录运动 / 更换动作） ===== */
+.sheet-overlay { position: fixed; inset: 0; background: rgba(17,24,39,0.45); z-index: 50; display: flex; align-items: flex-end; justify-content: center; }
+.sheet-overlay[hidden] { display: none; }
+.sheet {
+  width: 100%; max-width: 480px;
+  background: #fff;
+  border-top-left-radius: 22px; border-top-right-radius: 22px;
+  padding: 10px 18px calc(env(safe-area-inset-bottom) + 18px);
+  max-height: 90vh; overflow-y: auto;
+  animation: slideUp 0.26s ease;
+}
+@keyframes slideUp { from { transform: translateY(100%); } to { transform: none; } }
+.sheet-handle { width: 40px; height: 4px; background: var(--line); border-radius: 2px; margin: 4px auto 12px; }
+.sheet-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.sheet-title { font-size: 17px; font-weight: 700; }
+.sheet-close { border: none; background: var(--line-soft); width: 30px; height: 30px; border-radius: 50%; font-size: 15px; color: var(--text-sub); cursor: pointer; }
+.sheet-body { padding-bottom: 10px; }
+.field-label { font-size: 13px; color: var(--text-sub); margin-bottom: 8px; font-weight: 600; }
+.type-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+.chip { border: 1.5px solid var(--line); background: #fff; border-radius: 20px; padding: 8px 13px; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 5px; }
+.chip.sel { border-color: var(--primary); background: var(--primary-50); color: var(--primary); font-weight: 600; }
+.field-row { display: flex; gap: 12px; }
+.field { flex: 1; margin-bottom: 14px; }
+.field label { font-size: 13px; color: var(--text-sub); display: block; margin-bottom: 6px; }
+.field input { width: 100%; border: 1.5px solid var(--line); border-radius: 12px; padding: 11px 12px; font-size: 15px; outline: none; }
+.field input:focus { border-color: var(--primary); }
+.btn-add { width: 100%; border: 1.5px dashed var(--primary); background: var(--primary-50); color: var(--primary); border-radius: 12px; padding: 12px; font-size: 14px; font-weight: 600; cursor: pointer; }
+.edit-list { display: flex; flex-direction: column; gap: 8px; }
+.edit-item { display: flex; align-items: center; gap: 10px; background: var(--line-soft); border-radius: 12px; padding: 10px 12px; }
+.edit-item .ei-emoji { font-size: 20px; }
+.edit-item .ei-main { flex: 1; }
+.edit-item .ei-name { font-weight: 600; font-size: 14px; }
+.edit-item .ei-meta { font-size: 12px; color: var(--text-sub); }
+.edit-item .ei-del { border: none; background: none; color: var(--danger); font-size: 18px; cursor: pointer; }
+.sheet-foot { display: flex; gap: 12px; margin-top: 16px; }
+.btn-primary { flex: 2; border: none; background: var(--primary); color: #fff; border-radius: 14px; padding: 15px; font-size: 16px; font-weight: 700; cursor: pointer; }
+.btn-secondary { flex: 1; border: 1.5px solid var(--line); background: #fff; color: var(--text-sub); border-radius: 14px; padding: 15px; font-size: 15px; cursor: pointer; }
+
+/* 更换动作 */
+.replace-list { display: flex; flex-direction: column; gap: 2px; max-height: 46vh; overflow-y: auto; }
+.replace-day { font-size: 12px; color: var(--text-sub); font-weight: 700; margin: 10px 0 4px; }
+.replace-list .replace-day:first-child { margin-top: 0; }
+.replace-item { background: var(--line-soft); border-radius: 10px; padding: 11px 13px; font-size: 14px; cursor: pointer; }
+.replace-item:active { background: var(--primary-50); }
+.replace-item.same { opacity: 0.5; cursor: default; }
+.replace-custom { display: flex; gap: 8px; }
+.replace-custom input { flex: 1; border: 1.5px solid var(--line); border-radius: 12px; padding: 11px 12px; font-size: 14px; outline: none; }
+.replace-custom input:focus { border-color: var(--primary); }
+.replace-custom button { border: none; background: var(--primary); color: #fff; border-radius: 12px; padding: 0 18px; font-weight: 700; font-size: 14px; cursor: pointer; }
+
+/* 添加动作按钮（动作库入口） */
+.add-ex-btn {
+  width: 100%; border: 1.5px dashed var(--primary); background: var(--primary-50);
+  color: var(--primary); border-radius: 12px; padding: 13px; font-size: 15px; font-weight: 700; cursor: pointer;
+  transition: transform 0.12s ease;
+}
+.add-ex-btn:active { transform: scale(0.98); }
+
+/* 动作库弹层 */
+.lib-parts { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 4px; -ms-overflow-style: none; scrollbar-width: none; }
+.lib-parts::-webkit-scrollbar { display: none; }
+.lib-part {
+  flex: 0 0 auto; border: 1.5px solid var(--line); background: #fff;
+  border-radius: 20px; padding: 8px 13px; font-size: 13px; cursor: pointer; white-space: nowrap;
+}
+.lib-part.sel { border-color: var(--primary); background: var(--primary-50); color: var(--primary); font-weight: 700; }
+.lib-list { display: flex; flex-direction: column; gap: 8px; max-height: 46vh; overflow-y: auto; }
+.lib-item {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  background: var(--line-soft); border-radius: 12px; padding: 12px 14px; cursor: pointer;
+}
+.lib-item:active { background: var(--primary-50); }
+.lib-item-name { font-size: 14px; font-weight: 600; word-break: break-word; flex: 1; }
+.lib-item-meta { font-size: 12px; color: var(--text-sub); margin-top: 3px; }
+.lib-custom { display: flex; gap: 8px; }
+.lib-custom input { flex: 1; border: 1.5px solid var(--line); border-radius: 12px; padding: 11px 12px; font-size: 14px; outline: none; }
+.lib-custom input:focus { border-color: var(--primary); }
+.lib-custom button { border: none; background: var(--primary); color: #fff; border-radius: 12px; padding: 0 18px; font-weight: 700; font-size: 14px; cursor: pointer; }
+
+/* ===== 训练计划 ===== */
+.plan-intro { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; font-size: 13px; color: var(--text-sub); line-height: 1.6; margin-bottom: 14px; }
+.plan-list { display: flex; flex-direction: column; gap: 12px; }
+.plan-card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; }
+.plan-name { font-size: 16px; font-weight: 700; margin-bottom: 10px; color: var(--primary); }
+.plan-items { margin: 0 0 12px; padding-left: 20px; }
+.plan-items li { font-size: 14px; margin-bottom: 6px; line-height: 1.4; }
+.plan-load { width: 100%; border: none; background: var(--primary); color: #fff; border-radius: 12px; padding: 12px; font-weight: 700; font-size: 15px; cursor: pointer; }
+.plan-load:active { transform: scale(0.98); }
+.plan-rest { margin-top: 14px; font-size: 13px; color: var(--text-sub); background: var(--primary-50); border-radius: 12px; padding: 12px 14px; line-height: 1.6; }
+
+/* ===== Toast ===== */
+.toast {
+  position: fixed; bottom: 110px; left: 50%; transform: translateX(-50%);
+  background: rgba(17,24,39,0.94); color: #fff; padding: 11px 20px; border-radius: 22px;
+  font-size: 14px; z-index: 80; animation: fade 0.2s ease; max-width: 80%; text-align: center;
+}
+.toast[hidden] { display: none; }
+
+/* ============================================================
+   分步打卡向导（全屏）+ 滚轮选择器
+   ============================================================ */
+.wizard {
+  position: fixed; inset: 0; z-index: 90;
+  background: var(--bg);
+  display: flex; flex-direction: column;
+  max-width: 480px; margin: 0 auto;
+  animation: fade 0.22s ease;
+}
+.wizard[hidden] { display: none; }
+.wiz-top {
+  display: flex; align-items: center; gap: 12px;
+  padding: calc(env(safe-area-inset-top) + 14px) 18px 12px;
+  background: var(--card);
+  border-bottom: 1px solid var(--line);
+}
+.wiz-back { border: none; background: none; color: var(--primary); font-size: 15px; font-weight: 600; cursor: pointer; padding: 4px 0; flex: 0 0 auto; }
+.wiz-progress { flex: 1; display: flex; gap: 6px; align-items: center; }
+.wiz-dot { flex: 1; height: 6px; border-radius: 3px; background: var(--line); transition: background 0.2s ease; }
+.wiz-dot.on { background: var(--primary); }
+.wiz-count { font-size: 13px; color: var(--text-sub); flex: 0 0 auto; font-weight: 600; }
+
+.wiz-body { flex: 1; overflow-y: auto; padding: 26px 20px; display: flex; flex-direction: column; align-items: center; text-align: center; }
+.wiz-action-name { font-size: 22px; font-weight: 700; color: var(--text); margin-top: 14px; line-height: 1.4; padding: 0 8px; }
+.wiz-action-meta { font-size: 13px; color: var(--text-sub); margin-top: 8px; }
+.wiz-action-meta b { color: var(--primary); }
+
+/* 滚轮区 */
+.wiz-wheels { display: flex; gap: 0; margin-top: 28px; width: 100%; max-width: 340px; position: relative; }
+.wiz-wheels::before {
+  content: ""; position: absolute; left: 0; right: 0; top: 50%;
+  height: 44px; transform: translateY(-50%);
+  border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
+  background: var(--primary-50); border-radius: 10px; pointer-events: none;
+}
+.wheel {
+  flex: 1; height: 176px; overflow-y: auto; scroll-snap-type: y mandatory;
+  -webkit-overflow-scrolling: touch; position: relative;
+  scrollbar-width: none;
+}
+.wheel::-webkit-scrollbar { display: none; }
+.wheel-items { padding: 66px 0; }
+.wheel-item {
+  height: 44px; display: flex; align-items: center; justify-content: center;
+  font-size: 20px; font-weight: 700; color: var(--text-hint);
+  scroll-snap-align: center; transition: color 0.15s ease, transform 0.15s ease;
+}
+.wheel-item.sel { color: var(--primary); font-size: 24px; }
+.wiz-wheel-labels { display: flex; gap: 0; width: 100%; max-width: 340px; margin-top: 10px; }
+.wiz-wheel-labels span { flex: 1; text-align: center; font-size: 12px; color: var(--text-sub); }
+.wiz-body.empty .wiz-wheels, .wiz-body.empty .wiz-wheel-labels { display: none; }
+.wiz-body.empty .wiz-action-name { margin-top: 48px; }
+.wiz-body.empty .wiz-action-meta { margin-top: 12px; font-size: 14px; }
+
+.wiz-foot { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 14px 20px calc(env(safe-area-inset-bottom) + 18px); background: var(--card); border-top: 1px solid var(--line); }
+.wiz-nav {
+  flex: 1; border: 1.5px solid var(--line); background: #fff; color: var(--text-sub);
+  font-size: 15px; font-weight: 600; padding: 13px 10px; border-radius: 999px; cursor: pointer;
+  transition: transform 0.12s ease;
+}
+.wiz-nav:disabled { opacity: 0.4; cursor: not-allowed; }
+.wiz-nav:active { transform: scale(0.97); }
+.wiz-done-btn {
+  flex: 0 0 auto; width: 66px; height: 66px; border-radius: 50%; border: none;
+  background: var(--primary); color: #fff; font-size: 28px; font-weight: 700; line-height: 1;
+  cursor: pointer; box-shadow: 0 8px 18px rgba(15,110,86,0.35);
+  display: flex; align-items: center; justify-content: center;
+  transition: transform 0.12s ease;
+}
+.wiz-done-btn:active { transform: scale(0.93); }
+
+/* 向导完成成功页 */
+.wiz-done { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 40px 24px; }
+.wiz-done-view { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 40px 24px; }
+/* 修复：带 display 的类必须显式处理 [hidden]，否则 hidden 属性被作者样式覆盖，
+   导致「今日打卡完成」成功页（wizDoneView）无法隐藏，每次进向导都叠在动作列表上 */
+.wiz-done-view[hidden], .wiz-body[hidden], .wiz-foot[hidden] { display: none !important; }
+.wiz-done-ico { width: 84px; height: 84px; border-radius: 50%; background: var(--primary-50); display: flex; align-items: center; justify-content: center; font-size: 44px; margin-bottom: 18px; }
+.wiz-done-title { font-size: 22px; font-weight: 700; color: var(--text); }
+.wiz-done-sub { font-size: 14px; color: var(--text-sub); margin-top: 10px; line-height: 1.6; }
+
+/* ===================== 卡路里功能 (v2.9) ===================== */
+/* 首页「今日预计消耗」汇总卡 */
+.cal-summary {
+  display: flex; gap: 16px; align-items: center;
+  background: linear-gradient(135deg, #0F6E56, #11998e);
+  color: #fff; border-radius: var(--radius); padding: 16px 18px; margin: 14px 0 4px;
+  box-shadow: 0 6px 16px rgba(15,110,86,0.18);
+}
+.cal-sum-left { flex: 0 0 auto; text-align: center; min-width: 96px; }
+.cal-sum-num { font-size: 30px; font-weight: 800; line-height: 1; }
+.cal-sum-label { font-size: 11px; opacity: 0.9; margin-top: 4px; }
+.cal-sum-right { flex: 1; min-width: 0; }
+.cal-type-bar { display: flex; height: 12px; border-radius: 6px; overflow: hidden; background: rgba(255,255,255,0.25); }
+.cal-seg { height: 100%; display: flex; align-items: center; justify-content: center; font-size: 9px; color: #fff; white-space: nowrap; min-width: 0; transition: width 0.3s ease; }
+.cal-type-legend { display: flex; flex-wrap: wrap; gap: 8px 12px; margin-top: 8px; }
+.cal-legend-item { font-size: 11px; opacity: 0.95; display: inline-flex; align-items: center; gap: 4px; }
+.cal-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.cal-sum-note { font-size: 10px; opacity: 0.8; margin-top: 6px; }
+.cal-sum-empty { flex-basis: 100%; text-align: center; font-size: 13px; opacity: 0.92; padding: 4px 0; }
+
+/* 今日任务 / 当前动作 卡路里徽标（做功法估算） */
+.task-kcal {
+  display: inline-block; font-size: 11px; font-weight: 700; color: var(--primary);
+  background: var(--primary-50); border-radius: 999px; padding: 2px 8px; margin-left: 6px;
+  vertical-align: middle;
+}
+.tc-text .task-kcal { margin-left: 8px; }
+
+/* 向导底部：今日累计卡路里 */
+.wiz-cal { text-align: center; font-size: 13px; font-weight: 600; color: var(--primary); padding-bottom: 8px; }
+.wiz-foot { flex-direction: column; gap: 4px; }
+.wiz-foot-btns { display: flex; align-items: center; justify-content: space-between; gap: 14px; width: 100%; }
+
+/* 记录运动弹层：球类/游泳简单项目列表 + 实时估算 */
+.sport-list { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; max-height: 40vh; overflow-y: auto; }
+.sport-list[hidden] { display: none; }
+.sport-item {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  background: var(--line-soft); border: 1.5px solid transparent; border-radius: 12px; padding: 12px 14px; cursor: pointer;
+}
+.sport-item:active { background: var(--primary-50); }
+.sport-item.sel { border-color: var(--primary); background: var(--primary-50); }
+.sport-name { font-size: 15px; font-weight: 700; }
+.sport-meta { font-size: 12px; color: var(--text-sub); }
+.cal-estimate { font-size: 13px; font-weight: 600; color: var(--primary); background: var(--primary-50); border-radius: 10px; padding: 10px 12px; margin-top: 12px; }
+.cal-estimate[hidden] { display: none; }
+
+/* 统计页设置：体重输入 */
+.settings-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 6px; }
+.settings-row label { font-size: 14px; color: var(--text-sub); font-weight: 600; }
+.settings-row input { width: 110px; border: 1.5px solid var(--line); border-radius: 10px; padding: 9px 12px; font-size: 15px; text-align: right; outline: none; }
+.settings-row input:focus { border-color: var(--primary); }
+
+</style>
+</head>
+<body>
+  <!-- 登录已移除（无登录版 v2.2.0）：打开即进入主界面 -->
+
+  <div id="app">
+    <header class="app-header">
+      <div class="header-top">
+        <div class="header-titles">
+          <div class="header-sub" id="headerDate">—</div>
+          <div class="header-title">健身打卡</div>
+        </div>
+        <div class="header-user">
+          <span class="app-version" id="appVersion" style="font-size:12px;opacity:0.7"></span>
+        </div>
+      </div>
+    </header>
+
+    <main class="content">
+      <!-- 今日 -->
+      <section class="tab-panel active" id="panel-today">
+        <div class="hero-card">
+          <div class="hero-greet" id="heroGreet">今天也要加油</div>
+          <div class="hero-stats">
+            <div class="hstat">
+              <div class="hstat-num" id="statStreak">0</div>
+              <div class="hstat-label">连续天数</div>
+            </div>
+            <div class="hstat-divider"></div>
+            <div class="hstat">
+              <div class="hstat-num" id="statTotal">0</div>
+              <div class="hstat-label">累计打卡</div>
+            </div>
+          </div>
+          <button class="checkin-btn" id="checkinBtn">
+            <span class="checkin-emoji">🔥</span>
+            <span class="checkin-text" id="checkinText">今日打卡</span>
+          </button>
+          <div class="hero-hint" id="heroHint">点击按钮，记录今天的坚持</div>
+        </div>
+
+        <div class="cal-summary" id="calSummary">
+          <div class="cal-sum-left">
+            <div class="cal-sum-num" id="calSumNum">0</div>
+            <div class="cal-sum-label">今日预计消耗 (千卡)</div>
+          </div>
+          <div class="cal-sum-right">
+            <div class="cal-type-bar" id="calTypeBar"></div>
+            <div class="cal-type-legend" id="calTypeLegend"></div>
+            <div class="cal-sum-note">估算值，仅供参考</div>
+          </div>
+          <div class="cal-sum-empty" id="calSumEmpty" hidden>添加动作或记录运动后自动估算</div>
+        </div>
+
+        <div class="reco-banner" id="recoBanner" hidden></div>
+
+        <div class="section-title">今日任务 <span class="task-progress" id="taskProgress"></span></div>
+        <div class="task-current" id="taskCurrent"></div>
+        <div class="task-list" id="taskList"></div>
+        <div class="task-add">
+          <button class="add-ex-btn" id="addExerciseBtn">＋ 从动作库添加</button>
+        </div>
+
+        <div class="section-title">今日运动</div>
+        <div class="today-list" id="todayList"></div>
+        <div class="task-add">
+          <button class="add-ex-btn" id="addTodayExBtn">＋ 添加运动</button>
+        </div>
+
+        <div class="section-title" id="todayActionsTitle" hidden>今日动作记录</div>
+        <div class="today-actions" id="todayActions"></div>
+      </section>
+
+      <!-- 日历 -->
+      <section class="tab-panel" id="panel-calendar">
+        <div class="cal-card">
+          <div class="cal-head">
+            <button class="cal-nav" id="calPrev">‹</button>
+            <div class="cal-month" id="calMonth">—</div>
+            <button class="cal-nav" id="calNext">›</button>
+          </div>
+          <div class="cal-week">
+            <span>日</span><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span>
+          </div>
+          <div class="cal-grid" id="calGrid"></div>
+          <div class="cal-legend">
+            <span class="dot dot-done"></span>已打卡
+            <span class="dot dot-rest"></span>休息
+          </div>
+        </div>
+        <div class="section-title" id="dayDetailTitle">当日详情</div>
+        <div class="day-detail" id="dayDetail"></div>
+      </section>
+
+      <!-- 统计 -->
+      <section class="tab-panel" id="panel-stats">
+        <div class="summary-grid">
+          <div class="sum-card">
+            <div class="sum-num" id="sumTotal">0</div>
+            <div class="sum-label">累计打卡(天)</div>
+          </div>
+          <div class="sum-card">
+            <div class="sum-num" id="sumCur">0</div>
+            <div class="sum-label">当前连续</div>
+          </div>
+          <div class="sum-card">
+            <div class="sum-num" id="sumLong">0</div>
+            <div class="sum-label">最长连续</div>
+          </div>
+          <div class="sum-card">
+            <div class="sum-num" id="sumDur">0</div>
+            <div class="sum-label">总时长(分)</div>
+          </div>
+        </div>
+
+        <div class="chart-card">
+          <div class="chart-title">最近 7 天运动时长</div>
+          <canvas id="chartWeek" class="chart-canvas"></canvas>
+        </div>
+
+        <div class="chart-card">
+          <div class="chart-title">最近 30 天打卡趋势</div>
+          <canvas id="chartTrend" class="chart-canvas"></canvas>
+        </div>
+
+        <div class="chart-card">
+          <div class="chart-title">运动类型分布</div>
+          <div class="type-dist" id="typeDist"></div>
+        </div>
+
+        <div class="chart-card">
+          <div class="chart-title">设置</div>
+          <div class="settings-row">
+            <label>体重 (kg)</label>
+            <input type="number" id="inpWeight" inputmode="decimal" min="20" max="250" step="0.5" />
+          </div>
+          <div class="cal-sum-note">卡路里估算会随体重变化（仅本地保存）</div>
+        </div>
+
+        <div class="danger-zone">
+          <button class="btn-ghost" id="exportBtn">导出数据</button>
+          <button class="btn-ghost danger" id="resetBtn">清空所有数据</button>
+        </div>
+      </section>
+
+      <!-- 计划 -->
+      <section class="tab-panel" id="panel-plan">
+        <div class="plan-intro" id="planIntro"></div>
+        <div class="plan-list" id="planList"></div>
+        <div class="plan-rest" id="planRest"></div>
+      </section>
+    </main>
+
+    <nav class="bottom-nav">
+      <button class="nav-btn active" data-tab="today">
+        <span class="nav-ico">🏠</span><span class="nav-txt">今日</span>
+      </button>
+      <button class="nav-btn" data-tab="calendar">
+        <span class="nav-ico">📅</span><span class="nav-txt">日历</span>
+      </button>
+      <button class="nav-btn" data-tab="stats">
+        <span class="nav-ico">📊</span><span class="nav-txt">统计</span>
+      </button>
+      <button class="nav-btn" data-tab="plan">
+        <span class="nav-ico">📋</span><span class="nav-txt">计划</span>
+      </button>
+    </nav>
+  </div>
+
+  <!-- 分步打卡向导（点击「今日打卡」进入） -->
+  <div class="wizard" id="wizard" hidden>
+    <div class="wiz-top">
+      <button class="wiz-back" id="wizBack">‹ 返回</button>
+      <div class="wiz-progress" id="wizProgress"></div>
+      <div class="wiz-count" id="wizCount"></div>
+    </div>
+    <div class="wiz-body" id="wizBody">
+      <div class="wiz-action-name" id="wizActionName"></div>
+      <div class="wiz-action-meta" id="wizActionMeta"></div>
+      <div class="wiz-wheels">
+        <div class="wheel" id="wheelW"><div class="wheel-items" id="wheelItemsW"></div></div>
+        <div class="wheel" id="wheelS"><div class="wheel-items" id="wheelItemsS"></div></div>
+        <div class="wheel" id="wheelR"><div class="wheel-items" id="wheelItemsR"></div></div>
+      </div>
+      <div class="wiz-wheel-labels"><span>重量(kg)</span><span>组数</span><span>次数</span></div>
+    </div>
+    <div class="wiz-done-view" id="wizDoneView" hidden>
+      <div class="wiz-done-ico">✓</div>
+      <div class="wiz-done-title">今日打卡完成！</div>
+      <div class="wiz-done-sub" id="wizDoneSub"></div>
+    </div>
+    <div class="wiz-foot" id="wizFoot">
+      <div class="wiz-cal" id="wizCal"></div>
+      <div class="wiz-foot-btns">
+        <button class="wiz-nav" id="wizPrev">上一个</button>
+        <button class="wiz-done-btn" id="wizDone" aria-label="完成该动作">✓</button>
+        <button class="wiz-nav" id="wizNext">下一个</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 打卡记录弹层 -->
+  <div class="sheet-overlay" id="sheetOverlay" hidden>
+    <div class="sheet" id="sheet">
+      <div class="sheet-handle"></div>
+      <div class="sheet-head">
+        <div class="sheet-title" id="sheetTitle">记录今日运动</div>
+        <button class="sheet-close" id="sheetClose">✕</button>
+      </div>
+
+      <div class="sheet-body">
+        <div class="field-label">选择运动类型</div>
+        <div class="type-chips" id="typeChips"></div>
+
+        <div class="sport-list" id="sportList" hidden></div>
+
+        <div class="field-row">
+          <div class="field">
+            <label>时长(分钟)</label>
+            <input type="number" id="inpDuration" inputmode="numeric" placeholder="30" min="0" />
+          </div>
+        </div>
+
+        <div class="cal-estimate" id="calEstimate" hidden></div>
+
+        <div class="field">
+          <label>备注</label>
+          <input type="text" id="inpNote" placeholder="例如：胸部+三头" maxlength="40" />
+        </div>
+
+        <button class="btn-add" id="btnAddExercise">+ 添加到今日</button>
+
+        <div class="field-label" style="margin-top:14px">今日已记录</div>
+        <div class="edit-list" id="editList"></div>
+      </div>
+
+      <div class="sheet-foot">
+        <button class="btn-secondary" id="btnUndo" hidden>撤销打卡</button>
+        <button class="btn-primary" id="btnFinish">完成打卡</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 更换动作弹层 -->
+  <div class="sheet-overlay" id="replaceOverlay" hidden>
+    <div class="sheet" id="replaceSheet">
+      <div class="sheet-handle"></div>
+      <div class="sheet-head">
+        <div class="sheet-title">更换动作</div>
+        <button class="sheet-close" id="replaceClose">✕</button>
+      </div>
+      <div class="sheet-body">
+        <div class="field-label">选择一个动作替换当前项</div>
+        <div class="replace-list" id="replaceList"></div>
+        <div class="field-label" style="margin-top:16px">或自定义动作</div>
+        <div class="replace-custom">
+          <input type="text" id="replaceCustom" placeholder="如 哑铃弯举 3组×12" maxlength="40" />
+          <button id="replaceCustomBtn">替换</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 动作库添加弹层 -->
+  <div class="sheet-overlay" id="addLibOverlay" hidden>
+    <div class="sheet" id="addLibSheet">
+      <div class="sheet-handle"></div>
+      <div class="sheet-head">
+        <div class="sheet-title">添加动作</div>
+        <button class="sheet-close" id="addLibClose">✕</button>
+      </div>
+      <div class="sheet-body">
+        <div class="field-label">选择锻炼部位</div>
+        <div class="lib-parts" id="libParts"></div>
+        <div class="field-label" style="margin-top:14px">该部位动作（点击直接添加）</div>
+        <div class="lib-list" id="libList"></div>
+        <div class="field-label" style="margin-top:16px">或自定义动作</div>
+        <div class="lib-custom">
+          <input type="text" id="libCustom" placeholder="如 热身5分钟" maxlength="40" />
+          <button id="libCustomBtn">添加</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" hidden></div>
+
+  <script>
 /* ===================== 健身打卡 App ===================== */
 (function () {
   "use strict";
@@ -1507,3 +2276,7 @@
     });
   }
 })();
+
+</script>
+</body>
+</html>

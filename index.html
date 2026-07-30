@@ -9,7 +9,7 @@
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="icon.svg" />
-  <link rel="stylesheet" href="css/style.css?v=400" />
+  <link rel="stylesheet" href="css/style.css?v=550" />
 </head>
 <body>
   <!-- 登录已移除（无登录版 v2.2.0）：打开即进入主界面 -->
@@ -50,18 +50,33 @@
           <div class="hero-hint" id="heroHint">点击按钮，记录今天的坚持</div>
         </div>
 
+        <div class="cal-summary" id="calSummary">
+          <div class="cal-sum-left">
+            <div class="cal-sum-num" id="calSumNum">0</div>
+            <div class="cal-sum-label">今日预计消耗 (千卡)</div>
+          </div>
+          <div class="cal-sum-right">
+            <div class="cal-type-bar" id="calTypeBar"></div>
+            <div class="cal-type-legend" id="calTypeLegend"></div>
+            <div class="cal-sum-note">估算值，仅供参考</div>
+          </div>
+          <div class="cal-sum-empty" id="calSumEmpty" hidden>添加动作或记录运动后自动估算</div>
+        </div>
+
         <div class="reco-banner" id="recoBanner" hidden></div>
 
         <div class="section-title">今日任务 <span class="task-progress" id="taskProgress"></span></div>
         <div class="task-current" id="taskCurrent"></div>
         <div class="task-list" id="taskList"></div>
         <div class="task-add">
-          <input type="text" id="taskInput" placeholder="添加动作，如 热身5分钟" maxlength="40" />
-          <button id="taskAddBtn">添加</button>
+          <button class="add-ex-btn" id="addExerciseBtn">＋ 从动作库添加</button>
         </div>
 
         <div class="section-title">今日运动</div>
         <div class="today-list" id="todayList"></div>
+        <div class="task-add">
+          <button class="add-ex-btn" id="addTodayExBtn">＋ 添加运动</button>
+        </div>
 
         <div class="section-title" id="todayActionsTitle" hidden>今日动作记录</div>
         <div class="today-actions" id="todayActions"></div>
@@ -124,6 +139,15 @@
           <div class="type-dist" id="typeDist"></div>
         </div>
 
+        <div class="chart-card">
+          <div class="chart-title">设置</div>
+          <div class="settings-row">
+            <label>体重 (kg)</label>
+            <input type="number" id="inpWeight" inputmode="decimal" min="20" max="250" step="0.5" />
+          </div>
+          <div class="cal-sum-note">卡路里估算会随体重变化（仅本地保存）</div>
+        </div>
+
         <div class="danger-zone">
           <button class="btn-ghost" id="exportBtn">导出数据</button>
           <button class="btn-ghost danger" id="resetBtn">清空所有数据</button>
@@ -171,8 +195,18 @@
       </div>
       <div class="wiz-wheel-labels"><span>重量(kg)</span><span>组数</span><span>次数</span></div>
     </div>
-    <div class="wiz-foot">
-      <button class="wiz-next" id="wizNext">下一个</button>
+    <div class="wiz-done-view" id="wizDoneView" hidden>
+      <div class="wiz-done-ico">✓</div>
+      <div class="wiz-done-title">今日打卡完成！</div>
+      <div class="wiz-done-sub" id="wizDoneSub"></div>
+    </div>
+    <div class="wiz-foot" id="wizFoot">
+      <div class="wiz-cal" id="wizCal"></div>
+      <div class="wiz-foot-btns">
+        <button class="wiz-nav" id="wizPrev">上一个</button>
+        <button class="wiz-done-btn" id="wizDone" aria-label="完成该动作">✓</button>
+        <button class="wiz-nav" id="wizNext">下一个</button>
+      </div>
     </div>
   </div>
 
@@ -189,16 +223,16 @@
         <div class="field-label">选择运动类型</div>
         <div class="type-chips" id="typeChips"></div>
 
+        <div class="sport-list" id="sportList" hidden></div>
+
         <div class="field-row">
           <div class="field">
             <label>时长(分钟)</label>
             <input type="number" id="inpDuration" inputmode="numeric" placeholder="30" min="0" />
           </div>
-          <div class="field">
-            <label>消耗(千卡)</label>
-            <input type="number" id="inpCalories" inputmode="numeric" placeholder="可选" min="0" />
-          </div>
         </div>
+
+        <div class="cal-estimate" id="calEstimate" hidden></div>
 
         <div class="field">
           <label>备注</label>
@@ -238,8 +272,30 @@
     </div>
   </div>
 
+  <!-- 动作库添加弹层 -->
+  <div class="sheet-overlay" id="addLibOverlay" hidden>
+    <div class="sheet" id="addLibSheet">
+      <div class="sheet-handle"></div>
+      <div class="sheet-head">
+        <div class="sheet-title">添加动作</div>
+        <button class="sheet-close" id="addLibClose">✕</button>
+      </div>
+      <div class="sheet-body">
+        <div class="field-label">选择锻炼部位</div>
+        <div class="lib-parts" id="libParts"></div>
+        <div class="field-label" style="margin-top:14px">该部位动作（点击直接添加）</div>
+        <div class="lib-list" id="libList"></div>
+        <div class="field-label" style="margin-top:16px">或自定义动作</div>
+        <div class="lib-custom">
+          <input type="text" id="libCustom" placeholder="如 热身5分钟" maxlength="40" />
+          <button id="libCustomBtn">添加</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div class="toast" id="toast" hidden></div>
 
-  <script src="js/app.js?v=400"></script>
+  <script src="js/app.js?v=550"></script>
 </body>
 </html>

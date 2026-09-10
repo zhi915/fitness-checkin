@@ -259,7 +259,7 @@
   ];
 
   /* ---------- 应用版本（主界面右上角标识，确认是否运行最新版） ---------- */
-  var APP_VERSION = "3.0.9";
+  var APP_VERSION = "3.0.10";
 
   /* ---------- 数据层（单机版：统一存储，无登录） ---------- */
   var DATA_KEY = "fitapp_data";
@@ -1907,20 +1907,22 @@
     $("themeOverlay").addEventListener("click", function (e) { if (e.target === $("themeOverlay")) closeTheme(); });
     $("wallpaperInput").addEventListener("change", function (e) {
       var f = e.target.files && e.target.files[0];
+      e.target.value = "";   // 先清空，允许重复选同一文件
       if (!f) return;
       if (!/^image\//.test(f.type)) { toast("请选择图片文件"); return; }
       var reader = new FileReader();
+      reader.onerror = function () { toast("图片读取失败，请换一张重试"); };
       reader.onload = function () {
-        /* 大图压缩，避免 localStorage 超限 */
-        compressImage(reader.result, 1280, 0.82, function (out) {
-          setWallpaper(out);
-          toast("壁纸已更新");
-        });
+        var res = reader.result;
+        if (typeof res !== "string" || !/^data:/.test(res)) { toast("图片读取失败，请换一张重试"); return; }
+        applyWallpaperFromDataUrl(res);
       };
       reader.readAsDataURL(f);
-      e.target.value = "";   // 允许重复选同一文件
     });
-    $("wallpaperClear").addEventListener("click", function () { setWallpaper(""); toast("已恢复内置壁纸"); });
+    $("wallpaperClear").addEventListener("click", function () {
+      var r = setWallpaper("");
+      toast(r === "ok" ? "已恢复内置壁纸" : "操作失败，请重试");
+    });
     $("profileGender").addEventListener("click", function (e) {
       var btn = e.target.closest ? e.target.closest("button") : null;
       if (!btn) return;
@@ -2061,6 +2063,9 @@
     var wp = data.wallpaper || DEFAULT_WALLPAPER;
     var url = 'url("' + wp + '")';
     root.style.setProperty("--wp-image", url);
+    // 标记「用户自定义壁纸」→ theme.css 据此在任何主题（含 plain）下强制显示壁纸层
+    if (data.wallpaper) root.setAttribute("data-wp", "custom");
+    else root.removeAttribute("data-wp");
   }
   function setTheme(key) {
     data.theme = (key === "plain") ? "plain" : key;
@@ -2073,16 +2078,28 @@
     if (!grid) return;
     grid.innerHTML = "";
     var cur = data.theme || DEFAULT_THEME;
+    var wpUrl = data.wallpaper || DEFAULT_WALLPAPER;
     THEMES.forEach(function (t) {
       var item = document.createElement("div");
       item.className = "theme-item" + (t.key === cur ? " sel" : "");
-      // 用内置壁纸做缩略图（自定义壁纸时也可显示）
-      var wpUrl = data.wallpaper || DEFAULT_WALLPAPER;
-      var bg = (t.key === "plain") ? t.sw : ('linear-gradient(180deg, rgba(0,0,0,0.25), rgba(0,0,0,0.5)), url("' + wpUrl + '")');
-      item.innerHTML =
-        '<div class="theme-swatch" style="background-image:' + bg + '">' +
-        '<span class="sw-chip">' + t.chip + '</span></div>' +
-        '<div class="theme-label">' + t.name + '</div>';
+      // 缩略图：不能用 style="…url("…")" 拼字符串——url() 里的双引号会提前截断 HTML
+      // 属性，导致缩略图失效；必须走 CSSOM 赋值（对超长 dataURL 同样安全）。
+      var sw = document.createElement("div");
+      sw.className = "theme-swatch";
+      if (t.key === "plain") {
+        sw.style.background = t.sw;
+      } else {
+        sw.style.backgroundImage = 'linear-gradient(180deg, rgba(0,0,0,0.25), rgba(0,0,0,0.5)), url("' + wpUrl + '")';
+      }
+      var chip = document.createElement("span");
+      chip.className = "sw-chip";
+      chip.textContent = t.chip;
+      sw.appendChild(chip);
+      var label = document.createElement("div");
+      label.className = "theme-label";
+      label.textContent = t.name;
+      item.appendChild(sw);
+      item.appendChild(label);
       item.addEventListener("click", function () { setTheme(t.key); });
       grid.appendChild(item);
     });
@@ -2100,36 +2117,102 @@
       if (nameEl) nameEl.textContent = "当前为内置壁纸（雪夜）";
     }
   }
+  /* 设定/清除壁纸。返回 "ok" | "too-big"（超出 localStorage 上限，已回滚） */
   function setWallpaper(dataUrl) {
+    var prev = data.wallpaper || "";
     data.wallpaper = dataUrl || "";
-    try { save(); } catch (e) { toast("壁纸过大，未能保存"); }
+    var ok = true;
+    try { save(); } catch (e) { ok = false; }
+    if (!ok) {
+      // 存不下就回滚：绝不留下「提示成功、其实没保存」的假象
+      data.wallpaper = prev;
+      applyTheme();
+      renderThemeGrid();
+      updateWallpaperUI();
+      return "too-big";
+    }
     applyTheme();
     renderThemeGrid();
     updateWallpaperUI();
+    return "ok";
   }
   /* 压缩图片：限制最长边 maxSize，输出 JPEG dataURL（图片无法解码时回退原图） */
+  /* 压缩图片：限制最长边 maxSize，输出 JPEG dataURL。
+     任一步失败（解码失败 / 无 canvas / 画布输出无效）都回退为原图，绝不产出空 dataURL。 */
   function compressImage(dataUrl, maxSize, quality, cb) {
     var done = false;
-    function finish(out) { if (done) return; done = true; cb(out); }
+    function finish(out) { if (done) return; done = true; cb(out || dataUrl); }
+    function fallback() { finish(dataUrl); }
     try {
       var img = new Image();
       img.onload = function () {
         try {
-          var w = img.width, h = img.height;
+          var w = img.naturalWidth || img.width;
+          var h = img.naturalHeight || img.height;
+          if (!w || !h) return fallback();
           var scale = Math.min(1, maxSize / Math.max(w, h));
-          var cw = Math.round(w * scale), ch = Math.round(h * scale);
+          var cw = Math.max(1, Math.round(w * scale));
+          var ch = Math.max(1, Math.round(h * scale));
           var cv = document.createElement("canvas");
           cv.width = cw; cv.height = ch;
-          var ctx = cv.getContext("2d");
+          var ctx = cv.getContext && cv.getContext("2d");
+          if (!ctx) return fallback();
           ctx.drawImage(img, 0, 0, cw, ch);
-          finish(cv.toDataURL("image/jpeg", quality));
-        } catch (e) { finish(dataUrl); }
+          var out = cv.toDataURL("image/jpeg", quality);
+          /* 画布异常时会得到 "data:," 之类无效值 —— 必须回退，否则会出现「提示成功却画不出图」 */
+          if (!/^data:image\/[a-z0-9.+-]+;base64,/i.test(out || "")) return fallback();
+          finish(out);
+        } catch (e) { fallback(); }
       };
-      img.onerror = function () { finish(dataUrl); };
+      img.onerror = fallback;
       img.src = dataUrl;
       /* 兜底：若 3 秒内回调未触发（异常环境），直接使用原图 */
-      setTimeout(function () { finish(dataUrl); }, 3000);
-    } catch (e) { finish(dataUrl); }
+      setTimeout(fallback, 3000);
+    } catch (e) { fallback(); }
+  }
+  /* 校验 dataURL 能否被浏览器真正解码（防止"上传成功但显示不出"的图片被当成功） */
+  function verifyImageDecodable(dataUrl, cb) {
+    var done = false;
+    function fin(v) { if (done) return; done = true; cb(v); }
+    try {
+      var img = new Image();
+      img.onload = function () { fin((img.naturalWidth || img.width) > 0); };
+      img.onerror = function () { fin(false); };
+      img.src = dataUrl;
+      setTimeout(function () { fin(false); }, 3000);
+    } catch (e) { fin(false); }
+  }
+  /* 从任意 dataURL 应用壁纸：逐级压缩（越小越省空间）→ 解码校验 → 保存。
+     全部失败才提示失败，且给出可操作的原因。 */
+  function applyWallpaperFromDataUrl(src) {
+    var ladder = [[1280, 0.82], [1024, 0.72], [800, 0.62], [640, 0.55]];
+    var i = 0, retriedWithOriginal = false;
+    function tryNext() {
+      if (i >= ladder.length) { toast("图片过大，建议换一张小一点的图片"); return; }
+      var step = ladder[i++];
+      compressImage(src, step[0], step[1], function (out) {
+        if (!out) return tryNext();
+        verifyImageDecodable(out, function (decodable) {
+          if (!decodable) {
+            /* 压缩结果解不出，用原图再试一次；仍不行就明确报错，不谎报成功 */
+            if (!retriedWithOriginal) {
+              retriedWithOriginal = true;
+              verifyImageDecodable(src, function (srcOk) {
+                if (!srcOk) { toast("这张图片无法显示，请换一张（支持 JPG/PNG 等）"); return; }
+                if (setWallpaper(src) === "ok") toast("壁纸已更新");
+                else tryNext();
+              });
+              return;
+            }
+            toast("这张图片无法显示，请换一张（支持 JPG/PNG 等）");
+            return;
+          }
+          if (setWallpaper(out) === "ok") { toast("壁纸已更新"); return; }
+          tryNext();   // 超出存储上限 → 再压小一档重试
+        });
+      });
+    }
+    tryNext();
   }
   /* 身体数据变化后，刷新所有与卡路里相关的视图 */
   function refreshCalorieViews() {

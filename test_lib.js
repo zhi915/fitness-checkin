@@ -36,7 +36,7 @@ try {
 
 // 1. 自动进主界面 + 版本号
 ok("主界面可见(无登录)", !document.getElementById("app").hidden || document.getElementById("app").style.display !== "none");
-ok("版本号 v3.0.9", (document.getElementById("appVersion").textContent || "").indexOf("3.0.9") !== -1);
+ok("版本号 v3.0.10", (document.getElementById("appVersion").textContent || "").indexOf("3.0.10") !== -1);
 
 const taskList = document.getElementById("taskList");
 const before = taskList.children.length;

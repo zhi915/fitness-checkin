@@ -623,12 +623,22 @@ body::before {
   transform: scale(1.04);       /* 防止模糊露边 */
   transition: opacity .4s ease;
 }
-/* 未启用主题时不显示壁纸 */
+/* 未启用主题时不显示壁纸（仅针对内置壁纸） */
 html:not([data-theme]) body::before,
 html[data-theme="plain"] body::before { opacity: 0; }
 
 /* 通用玻璃卡片基础类（主题在各自规则里覆盖变量即可） */
 html[data-theme] body { background: transparent; }
+
+/* ---------- 自定义壁纸：任何主题下都必须真实可见（含 plain / 未启用主题） ----------
+   1) 覆盖掉上面两条的 opacity:0；
+   2) 同时清掉不透明的 html / body / #app 底色——否则 z-index:-2 的壁纸层
+      会被 #app 的实色 var(--bg)（默认 #F5F7FB）整片盖住，表现为「上传成功却看不到壁纸」。*/
+html[data-wp="custom"] body::before { opacity: 1; }
+html[data-wp="custom"] { --bg: transparent; }
+html[data-wp="custom"],
+html[data-wp="custom"] body,
+html[data-wp="custom"] #app { background-color: transparent; }
 
 /* ---------- 主题 A：宁静夜（深蓝玻璃拟态） ---------- */
 html[data-theme="night"] {

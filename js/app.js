@@ -1,20 +1,22 @@
-/* ===================== 健身打卡 App ===================== */
-(function () {
+  /* ===================== 健身打卡 App ===================== */
+  (function () {
   "use strict";
 
+  /* ============================================================
+     运动类型（有氧 / 球类 / 游泳 等，MET 用于卡路里估算）
+     ============================================================ */
   var EXERCISE_TYPES = [
-    { id: "running",  name: "跑步", emoji: "🏃", color: "#FF6B6B", met: 7 },
-    { id: "gym",     name: "健身", emoji: "🏋️", color: "#4ECDC4", met: 5 },
-    { id: "yoga",    name: "瑜伽", emoji: "🧘", color: "#A78BFA", met: 2.5 },
-    { id: "cycling", name: "骑行", emoji: "🚴", color: "#45B7D1", met: 5 },
-    { id: "swim",    name: "游泳", emoji: "🏊", color: "#5DADE2", met: 6 },
-    { id: "walk",    name: "徒步", emoji: "🚶", color: "#82C91E", met: 3.5 },
-    { id: "ball",    name: "球类", emoji: "⚽", color: "#F59E0B", met: 6.5 },
-    { id: "other",   name: "其他", emoji: "✨", color: "#9AA0A6", met: 4 }
+    { id: "running",  name: "跑步", emoji: "🏃", icon: "ic-run",   color: "#2563EB", met: 7 },
+    { id: "gym",     name: "健身", emoji: "🏋️", icon: "ic-dumbbell", color: "#1D4ED8", met: 5 },
+    { id: "yoga",    name: "瑜伽", emoji: "🧘", icon: "ic-yoga",  color: "#7C3AED", met: 2.5 },
+    { id: "cycling", name: "骑行", emoji: "🚴", icon: "ic-cycle", color: "#0EA5E9", met: 5 },
+    { id: "swim",    name: "游泳", emoji: "🏊", icon: "ic-swim",  color: "#06B6D4", met: 6 },
+    { id: "walk",    name: "徒步", emoji: "🚶", icon: "ic-walk",  color: "#16A34A", met: 3.5 },
+    { id: "ball",    name: "球类", emoji: "⚽", icon: "ic-ball",  color: "#F59E0B", met: 6.5 },
+    { id: "other",   name: "其他", emoji: "✨", icon: "ic-other", color: "#64748B", met: 4 }
   ];
 
-  /* 球类 / 游泳 / 跑步 / 骑行 等具体项目的 MET 与默认时长（分钟）。
-     用户在「记录运动」里从简单列表选具体项目，自动带入时长并估算卡路里，无需手动输入。 */
+  /* 具体项目的 MET 与默认时长（分钟）——记录运动弹层用 */
   var SPORT_LIB = {
     "羽毛球":   { met: 5.5, minutes: 40 },
     "篮球":     { met: 8,   minutes: 45 },
@@ -27,7 +29,6 @@
     "骑行(休闲)": { met: 5, minutes: 30 },
     "慢跑":     { met: 7,   minutes: 20 }
   };
-  /* 各运动类型对应的具体项目列表（无则直接填时长） */
   var TYPE_SPORTS = {
     ball:    ["羽毛球", "篮球", "足球", "网球", "乒乓球", "排球"],
     swim:    ["自由泳", "蛙泳"],
@@ -44,115 +45,248 @@
 
   var WEEK = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
 
-  /* 每周排期：按星期几推荐今天练哪天（周一A 周二B 周三休息 周四C 周五D 周末休息） */
-  var SCHEDULE = {
-    0: { type: "rest", name: "瑜伽拉伸 / 放松恢复" },   // 周日
-    1: { type: "train", day: "A" },                     // 周一
-    2: { type: "train", day: "B" },                     // 周二
-    3: { type: "rest", name: "瑜伽拉伸 / 放松恢复" },   // 周三
-    4: { type: "train", day: "C" },                     // 周四
-    5: { type: "train", day: "D" },                     // 周五
-    6: { type: "rest", name: "瑜伽拉伸 / 放松恢复" }    // 周六
+  /* ============================================================
+     场景：居家 home / 健身房 gym
+     ============================================================ */
+  var SCENES = {
+    home: { id: "home", name: "居家", emoji: "🏠" },
+    gym:  { id: "gym",  name: "健身房", emoji: "🏢" }
   };
 
-  /* 默认训练计划：家庭中级分化（哑铃/杠铃/瑜伽垫，有基础） */
-  var DEFAULT_PLAN = {
-    note: "为「180cm / 72kg · 家庭健身 · 中级 · 器械：哑铃 / 杠铃 / 瑜伽垫」生成。每周 4 练（推/拉/腿/全身+有氧），隔天休息；休息日用瑜伽垫做拉伸。组间休 60-90 秒，动作标准优先。",
-    rest: "休息日：瑜伽垫拉伸 / 泡沫轴 / 散步 20-30 分钟，保持活动、促进恢复。",
-    days: [
-      { id: "A", name: "A · 推（胸·肩·三头）", items: [
-        "哑铃卧推 4组 × 8-10",
-        "哑铃肩上推举 3组 × 10-12",
-        "哑铃飞鸟 3组 × 12-15",
-        "双杠臂屈伸 / 凳上臂屈伸 3组 × 10-12",
-        "俯卧撑 2组 × 力竭"
-      ]},
-      { id: "B", name: "B · 拉（背·二头）", items: [
-        "杠铃俯身划船 4组 × 8-10",
-        "哑铃单臂划船 3组 × 10-12",
-        "反向划船（桌下/TRX） 3组 × 10-12",
-        "哑铃交替弯举 3组 × 10-12",
-        "面拉（弹力带/哑铃） 3组 × 15"
-      ]},
-      { id: "C", name: "C · 腿（股·臀·核心）", items: [
-        "杠铃深蹲 4组 × 8-10",
-        "哑铃箭步蹲 3组 × 10/腿",
-        "罗马尼亚硬拉（杠铃） 3组 × 10-12",
-        "站姿提踵 4组 × 15-20",
-        "平板支撑 3组 × 45-60秒"
-      ]},
-      { id: "D", name: "D · 全身+有氧", items: [
-        "哑铃高翻 / 借力推举 3组 × 8",
-        "波比跳 3组 × 12",
-        "登山者 3组 × 30秒",
-        "瑜伽垫核心（卷腹+臀桥） 3组 × 15",
-        "瑜伽垫拉伸放松 10分钟"
-      ]}
-    ]
+  /* ============================================================
+     结构化动作数据库（v3.0）
+     每个动作：{ id, name, part, equip, scenes[], weighted, met, icon,
+               sets, reps, timed, muscles, tips }
+     - equip:  器械（徒手/哑铃/杠铃/瑜伽垫/固定器械/绳索/弹力带/单杠）
+     - scenes: 适用场景（home / gym，可同时适用）
+     - weighted: 是否需要额外负重（false = 自重动作，打卡界面不显示重量滚轮）
+     - timed:  以时间计（如平板支撑），reps 为秒数
+     - met:    代谢当量（力量动作按组间休息折算的中等强度值）
+     ============================================================ */
+  var PARTS = [
+    { id: "chest",    name: "胸",   icon: "ic-chest",    emoji: "🫁" },
+    { id: "back",     name: "背",   icon: "ic-back",     emoji: "🔙" },
+    { id: "legs",     name: "腿",   icon: "ic-leg",      emoji: "🦵" },
+    { id: "shoulder", name: "肩",   icon: "ic-shoulder", emoji: "🤸" },
+    { id: "arms",     name: "手臂", icon: "ic-biceps",   emoji: "💪" },
+    { id: "core",     name: "核心", icon: "ic-core",     emoji: "🔥" },
+    { id: "cardio",   name: "有氧", icon: "ic-cardio",   emoji: "🏃" },
+    { id: "stretch",  name: "拉伸", icon: "ic-stretch",  emoji: "🧘" }
+  ];
+  var PART_MAP = {}; PARTS.forEach(function (p) { PART_MAP[p.id] = p; });
+
+  /* 器械图标映射（用于动作库/详情展示） */
+  var EQUIP_ICON = {
+    "徒手": "ic-bodyweight", "自重": "ic-bodyweight", "哑铃": "ic-dumbbell", "杠铃": "ic-barbell",
+    "固定器械": "ic-machine", "绳索": "ic-machine", "弹力带": "ic-machine", "单杠": "ic-pullup",
+    "瑜伽垫": "ic-yoga", "药球": "ic-bodyweight", "壶铃": "ic-dumbbell"
   };
 
-  /* 动作库：按部位分组，首页「从动作库添加」使用。贴合用户器械（哑铃/杠铃/瑜伽垫，居家，中级）。
-     文本格式兼容 parsePlanItem，可自动解析出默认组数/次数作为打卡预设。 */
-  var EXERCISE_LIB = [
-    { part: "胸", emoji: "🫁", items: [
-      "哑铃卧推 4组 × 8-10",
-      "上斜哑铃卧推 3组 × 10-12",
-      "哑铃飞鸟 3组 × 12-15",
-      "俯卧撑 3组 × 力竭",
-      "凳上臂屈伸（三头） 3组 × 10-12"
-    ]},
-    { part: "背", emoji: "💪", items: [
-      "杠铃俯身划船 4组 × 8-10",
-      "哑铃单臂划船 3组 × 10-12",
-      "反向划船（桌下） 3组 × 10-12",
-      "俯身哑铃反向飞鸟 3组 × 15",
-      "面拉 3组 × 15"
-    ]},
-    { part: "腿", emoji: "🦵", items: [
-      "杠铃深蹲 4组 × 8-10",
-      "哑铃箭步蹲 3组 × 10/腿",
-      "罗马尼亚硬拉（杠铃） 3组 × 10-12",
-      "保加利亚分腿蹲 3组 × 10/腿",
-      "站姿提踵 4组 × 15-20"
-    ]},
-    { part: "肩", emoji: "🤸", items: [
-      "哑铃肩上推举 3组 × 10-12",
-      "哑铃侧平举 3组 × 12-15",
-      "哑铃前平举 3组 × 12",
-      "俯身哑铃反向飞鸟 3组 × 15",
-      "杠铃前平举 3组 × 12"
-    ]},
-    { part: "臂", emoji: "💪", items: [
-      "哑铃交替弯举 3组 × 10-12",
-      "锤式弯举 3组 × 12",
-      "仰卧臂屈伸 3组 × 10-12",
-      "窄距俯卧撑 3组 × 力竭",
-      "凳上臂屈伸 3组 × 10-12"
-    ]},
-    { part: "核心", emoji: "🔥", items: [
-      "平板支撑 3组 × 45-60秒",
-      "卷腹 3组 × 15-20",
-      "俄罗斯转体 3组 × 20",
-      "登山者 3组 × 30秒",
-      "臀桥 3组 × 15"
-    ]},
-    { part: "有氧/热身", emoji: "🏃", items: [
-      "慢跑 20分钟",
-      "波比跳 3组 × 12",
-      "开合跳 3组 × 30",
-      "高抬腿 3组 × 30秒",
-      "瑜伽垫拉伸放松 10分钟"
-    ]}
+  /* --- 动作库：胸 --- */
+  var EX_LIB = [];
+  function ex(o) { o.id = "e" + EX_LIB.length; EX_LIB.push(o); return o; }
+
+  /* 胸（居家可做：哑铃卧推/飞鸟/俯卧撑；健身房可做：固定器械/杠铃平板） */
+  ex({ name: "哑铃卧推", part: "chest", equip: "哑铃", scenes: ["home", "gym"], weighted: true, met: 6, icon: "ic-chest", sets: 4, reps: "8-10", muscles: "胸大肌·三头", tips: "肩胛后收下沉，下放至胸侧" });
+  ex({ name: "上斜哑铃卧推", part: "chest", equip: "哑铃", scenes: ["home", "gym"], weighted: true, met: 6, icon: "ic-chest", sets: 3, reps: "10-12", muscles: "上胸" });
+  ex({ name: "哑铃飞鸟", part: "chest", equip: "哑铃", scenes: ["home", "gym"], weighted: true, met: 5.5, icon: "ic-chest", sets: 3, reps: "12-15", muscles: "胸大肌" });
+  ex({ name: "俯卧撑", part: "chest", equip: "徒手", scenes: ["home", "gym"], weighted: false, met: 6, icon: "ic-bodyweight", sets: 3, reps: "力竭", muscles: "胸·三头·核心" });
+  ex({ name: "上斜俯卧撑", part: "chest", equip: "徒手", scenes: ["home", "gym"], weighted: false, met: 5, icon: "ic-bodyweight", sets: 3, reps: "12-15", muscles: "胸大肌" });
+  ex({ name: "宽距俯卧撑", part: "chest", equip: "徒手", scenes: ["home", "gym"], weighted: false, met: 6, icon: "ic-bodyweight", sets: 3, reps: "10-15", muscles: "胸外侧" });
+  ex({ name: "双杠臂屈伸", part: "chest", equip: "单杠", scenes: ["gym"], weighted: false, met: 6.5, icon: "ic-pullup", sets: 3, reps: "8-12", muscles: "下胸·三头" });
+  ex({ name: "器械推胸", part: "chest", equip: "固定器械", scenes: ["gym"], weighted: true, met: 6, icon: "ic-machine", sets: 4, reps: "10-12", muscles: "胸大肌" });
+  ex({ name: "蝴蝶机夹胸", part: "chest", equip: "固定器械", scenes: ["gym"], weighted: true, met: 5.5, icon: "ic-machine", sets: 3, reps: "12-15", muscles: "胸中缝" });
+  ex({ name: "杠铃平板卧推", part: "chest", equip: "杠铃", scenes: ["gym"], weighted: true, met: 6.5, icon: "ic-barbell", sets: 4, reps: "6-10", muscles: "胸大肌·三头" });
+  ex({ name: "绳索夹胸", part: "chest", equip: "绳索", scenes: ["gym"], weighted: true, met: 5.5, icon: "ic-machine", sets: 3, reps: "12-15", muscles: "胸大肌" });
+  ex({ name: "下斜卧推", part: "chest", equip: "杠铃", scenes: ["gym"], weighted: true, met: 6.5, icon: "ic-barbell", sets: 3, reps: "8-10", muscles: "下胸" });
+
+  /* 背（居家：哑铃划船；健身房：高位下拉/坐姿划船/引体） */
+  ex({ name: "杠铃俯身划船", part: "back", equip: "杠铃", scenes: ["home", "gym"], weighted: true, met: 6, icon: "ic-barbell", sets: 4, reps: "8-10", muscles: "背阔肌·菱形肌" });
+  ex({ name: "哑铃单臂划船", part: "back", equip: "哑铃", scenes: ["home", "gym"], weighted: true, met: 6, icon: "ic-dumbbell", sets: 3, reps: "10-12", muscles: "背阔肌" });
+  ex({ name: "反向划船", part: "back", equip: "徒手", scenes: ["home", "gym"], weighted: false, met: 6, icon: "ic-bodyweight", sets: 3, reps: "10-12", muscles: "背部·二头" });
+  ex({ name: "俯身哑铃反向飞鸟", part: "back", equip: "哑铃", scenes: ["home", "gym"], weighted: true, met: 5.5, icon: "ic-dumbbell", sets: 3, reps: "15", muscles: "后束·上背" });
+  ex({ name: "哑铃硬拉", part: "back", equip: "哑铃", scenes: ["home", "gym"], weighted: true, met: 6.5, icon: "ic-dumbbell", sets: 3, reps: "10-12", muscles: "竖脊肌·臀腿" });
+  ex({ name: "引体向上", part: "back", equip: "单杠", scenes: ["gym"], weighted: false, met: 7, icon: "ic-pullup", sets: 4, reps: "6-10", muscles: "背阔肌·二头" });
+  ex({ name: "高位下拉", part: "back", equip: "固定器械", scenes: ["gym"], weighted: true, met: 6, icon: "ic-machine", sets: 4, reps: "10-12", muscles: "背阔肌" });
+  ex({ name: "坐姿划船", part: "back", equip: "固定器械", scenes: ["gym"], weighted: true, met: 6, icon: "ic-machine", sets: 4, reps: "10-12", muscles: "中背·菱形肌" });
+  ex({ name: "T杠划船", part: "back", equip: "杠铃", scenes: ["gym"], weighted: true, met: 6.5, icon: "ic-barbell", sets: 3, reps: "8-10", muscles: "背中部" });
+  ex({ name: "直臂下压", part: "back", equip: "绳索", scenes: ["gym"], weighted: true, met: 5.5, icon: "ic-machine", sets: 3, reps: "12-15", muscles: "背阔肌" });
+  ex({ name: "面拉", part: "back", equip: "绳索", scenes: ["gym"], weighted: true, met: 5, icon: "ic-machine", sets: 3, reps: "15", muscles: "后束·上背" });
+  ex({ name: "弹力带划船", part: "back", equip: "弹力带", scenes: ["home"], weighted: false, met: 5.5, icon: "ic-machine", sets: 3, reps: "15", muscles: "背部" });
+
+  /* 腿（居家：深蹲/箭步；健身房：腿推/腿弯举/腿屈伸） */
+  ex({ name: "杠铃深蹲", part: "legs", equip: "杠铃", scenes: ["home", "gym"], weighted: true, met: 7, icon: "ic-squat", sets: 4, reps: "8-10", muscles: "股四头·臀" });
+  ex({ name: "哑铃箭步蹲", part: "legs", equip: "哑铃", scenes: ["home", "gym"], weighted: true, met: 6.5, icon: "ic-leg", sets: 3, reps: "10/腿", muscles: "股四头·臀" });
+  ex({ name: "罗马尼亚硬拉", part: "legs", equip: "杠铃", scenes: ["home", "gym"], weighted: true, met: 6.5, icon: "ic-barbell", sets: 3, reps: "10-12", muscles: "腘绳·臀" });
+  ex({ name: "保加利亚分腿蹲", part: "legs", equip: "哑铃", scenes: ["home", "gym"], weighted: true, met: 6.5, icon: "ic-leg", sets: 3, reps: "10/腿", muscles: "股四头·臀" });
+  ex({ name: "站姿提踵", part: "legs", equip: "哑铃", scenes: ["home", "gym"], weighted: true, met: 5, icon: "ic-leg", sets: 4, reps: "15-20", muscles: "小腿" });
+  ex({ name: "徒手深蹲", part: "legs", equip: "徒手", scenes: ["home", "gym"], weighted: false, met: 5.5, icon: "ic-squat", sets: 3, reps: "20", muscles: "腿·臀" });
+  ex({ name: "臀桥", part: "legs", equip: "瑜伽垫", scenes: ["home", "gym"], weighted: false, met: 4, icon: "ic-core", sets: 3, reps: "15", muscles: "臀大肌" });
+  ex({ name: "腿推", part: "legs", equip: "固定器械", scenes: ["gym"], weighted: true, met: 6.5, icon: "ic-machine", sets: 4, reps: "10-12", muscles: "股四头·臀" });
+  ex({ name: "坐姿腿屈伸", part: "legs", equip: "固定器械", scenes: ["gym"], weighted: true, met: 5.5, icon: "ic-machine", sets: 3, reps: "12-15", muscles: "股四头" });
+  ex({ name: "俯卧腿弯举", part: "legs", equip: "固定器械", scenes: ["gym"], weighted: true, met: 5.5, icon: "ic-machine", sets: 3, reps: "12-15", muscles: "腘绳肌" });
+  ex({ name: "坐姿提踵", part: "legs", equip: "固定器械", scenes: ["gym"], weighted: true, met: 5, icon: "ic-machine", sets: 4, reps: "15-20", muscles: "小腿" });
+  ex({ name: "哈克深蹲", part: "legs", equip: "固定器械", scenes: ["gym"], weighted: true, met: 7, icon: "ic-machine", sets: 4, reps: "8-12", muscles: "股四头·臀" });
+  ex({ name: "开合跳", part: "legs", equip: "徒手", scenes: ["home", "gym"], weighted: false, met: 8, icon: "ic-cardio", sets: 3, reps: "30秒", timed: true, muscles: "全身·心肺" });
+  ex({ name: "哑铃相扑深蹲", part: "legs", equip: "哑铃", scenes: ["home", "gym"], weighted: true, met: 6.5, icon: "ic-squat", sets: 3, reps: "12", muscles: "臀·大腿内侧" });
+  ex({ name: "单腿硬拉", part: "legs", equip: "哑铃", scenes: ["home", "gym"], weighted: true, met: 6, icon: "ic-leg", sets: 3, reps: "10/腿", muscles: "腘绳·臀" });
+  ex({ name: "臀冲", part: "legs", equip: "杠铃", scenes: ["gym"], weighted: true, met: 6, icon: "ic-machine", sets: 4, reps: "10-12", muscles: "臀大肌" });
+  ex({ name: "腿内收机", part: "legs", equip: "固定器械", scenes: ["gym"], weighted: true, met: 5, icon: "ic-machine", sets: 3, reps: "15", muscles: "大腿内侧" });
+  ex({ name: "腿外展机", part: "legs", equip: "固定器械", scenes: ["gym"], weighted: true, met: 5, icon: "ic-machine", sets: 3, reps: "15", muscles: "臀中肌" });
+  ex({ name: "杠铃颈前深蹲", part: "legs", equip: "杠铃", scenes: ["gym"], weighted: true, met: 7, icon: "ic-squat", sets: 4, reps: "8-10", muscles: "股四头" });
+  ex({ name: "跳箱", part: "legs", equip: "徒手", scenes: ["gym"], weighted: false, met: 8, icon: "ic-cardio", sets: 3, reps: "10", muscles: "爆发力·腿" });
+  ex({ name: "深蹲跳", part: "legs", equip: "徒手", scenes: ["home", "gym"], weighted: false, met: 8, icon: "ic-cardio", sets: 3, reps: "12", muscles: "腿·心肺" });
+
+  /* 肩 */
+  ex({ name: "哑铃肩上推举", part: "shoulder", equip: "哑铃", scenes: ["home", "gym"], weighted: true, met: 6, icon: "ic-shoulder", sets: 3, reps: "10-12", muscles: "三角肌前中束" });
+  ex({ name: "哑铃侧平举", part: "shoulder", equip: "哑铃", scenes: ["home", "gym"], weighted: true, met: 5, icon: "ic-shoulder", sets: 3, reps: "12-15", muscles: "三角肌中束" });
+  ex({ name: "哑铃前平举", part: "shoulder", equip: "哑铃", scenes: ["home", "gym"], weighted: true, met: 5, icon: "ic-shoulder", sets: 3, reps: "12", muscles: "三角肌前束" });
+  ex({ name: "阿诺德推举", part: "shoulder", equip: "哑铃", scenes: ["home", "gym"], weighted: true, met: 6, icon: "ic-shoulder", sets: 3, reps: "10-12", muscles: "三角肌" });
+  ex({ name: "杠铃肩上推举", part: "shoulder", equip: "杠铃", scenes: ["gym"], weighted: true, met: 6.5, icon: "ic-barbell", sets: 4, reps: "8-10", muscles: "三角肌·三头" });
+  ex({ name: "器械肩推", part: "shoulder", equip: "固定器械", scenes: ["gym"], weighted: true, met: 6, icon: "ic-machine", sets: 4, reps: "10-12", muscles: "三角肌" });
+  ex({ name: "绳索侧平举", part: "shoulder", equip: "绳索", scenes: ["gym"], weighted: true, met: 5, icon: "ic-machine", sets: 3, reps: "12-15", muscles: "三角肌中束" });
+  ex({ name: "哑铃耸肩", part: "shoulder", equip: "哑铃", scenes: ["home", "gym"], weighted: true, met: 5, icon: "ic-shoulder", sets: 3, reps: "15", muscles: "斜方肌" });
+  ex({ name: "倒立撑", part: "shoulder", equip: "徒手", scenes: ["home", "gym"], weighted: false, met: 6.5, icon: "ic-bodyweight", sets: 3, reps: "8-12", muscles: "三角肌·三头" });
+  ex({ name: "俯身哑铃飞鸟", part: "shoulder", equip: "哑铃", scenes: ["home", "gym"], weighted: true, met: 5, icon: "ic-shoulder", sets: 3, reps: "15", muscles: "三角肌后束" });
+  ex({ name: "绳索面拉", part: "shoulder", equip: "绳索", scenes: ["gym"], weighted: true, met: 5, icon: "ic-machine", sets: 3, reps: "15", muscles: "三角肌后束" });
+  ex({ name: "杠铃前平举", part: "shoulder", equip: "杠铃", scenes: ["gym"], weighted: true, met: 5, icon: "ic-barbell", sets: 3, reps: "12", muscles: "三角肌前束" });
+  ex({ name: "侧平举（弹力带）", part: "shoulder", equip: "弹力带", scenes: ["home"], weighted: false, met: 4.5, icon: "ic-machine", sets: 3, reps: "15", muscles: "三角肌中束" });
+
+  /* 手臂 */
+  ex({ name: "哑铃交替弯举", part: "arms", equip: "哑铃", scenes: ["home", "gym"], weighted: true, met: 5, icon: "ic-biceps", sets: 3, reps: "10-12", muscles: "肱二头" });
+  ex({ name: "锤式弯举", part: "arms", equip: "哑铃", scenes: ["home", "gym"], weighted: true, met: 5, icon: "ic-biceps", sets: 3, reps: "12", muscles: "肱肌·肱桡肌" });
+  ex({ name: "仰卧臂屈伸", part: "arms", equip: "哑铃", scenes: ["home", "gym"], weighted: true, met: 5, icon: "ic-biceps", sets: 3, reps: "10-12", muscles: "肱三头" });
+  ex({ name: "窄距俯卧撑", part: "arms", equip: "徒手", scenes: ["home", "gym"], weighted: false, met: 5.5, icon: "ic-bodyweight", sets: 3, reps: "力竭", muscles: "肱三头" });
+  ex({ name: "凳上臂屈伸", part: "arms", equip: "徒手", scenes: ["home", "gym"], weighted: false, met: 5, icon: "ic-bodyweight", sets: 3, reps: "10-12", muscles: "肱三头" });
+  ex({ name: "杠铃弯举", part: "arms", equip: "杠铃", scenes: ["gym"], weighted: true, met: 5.5, icon: "ic-barbell", sets: 3, reps: "10-12", muscles: "肱二头" });
+  ex({ name: "绳索下压", part: "arms", equip: "绳索", scenes: ["gym"], weighted: true, met: 5, icon: "ic-machine", sets: 3, reps: "12-15", muscles: "肱三头" });
+  ex({ name: "器械弯举", part: "arms", equip: "固定器械", scenes: ["gym"], weighted: true, met: 5, icon: "ic-machine", sets: 3, reps: "12", muscles: "肱二头" });
+  ex({ name: "集中弯举", part: "arms", equip: "哑铃", scenes: ["home", "gym"], weighted: true, met: 5, icon: "ic-biceps", sets: 3, reps: "10-12", muscles: "肱二头" });
+  ex({ name: "过顶臂屈伸", part: "arms", equip: "哑铃", scenes: ["home", "gym"], weighted: true, met: 5, icon: "ic-biceps", sets: 3, reps: "12", muscles: "肱三头长头" });
+  ex({ name: "反握弯举", part: "arms", equip: "杠铃", scenes: ["gym"], weighted: true, met: 5, icon: "ic-barbell", sets: 3, reps: "12", muscles: "前臂·肱二头" });
+  ex({ name: "腕弯举", part: "arms", equip: "哑铃", scenes: ["home", "gym"], weighted: true, met: 4, icon: "ic-dumbbell", sets: 3, reps: "15-20", muscles: "前臂" });
+  ex({ name: "绳索过顶臂屈伸", part: "arms", equip: "绳索", scenes: ["gym"], weighted: true, met: 5, icon: "ic-machine", sets: 3, reps: "12", muscles: "肱三头长头" });
+  ex({ name: "哑铃内旋弯举", part: "arms", equip: "哑铃", scenes: ["home", "gym"], weighted: true, met: 5, icon: "ic-biceps", sets: 3, reps: "12", muscles: "肱前臂" });
+  ex({ name: "俯身臂屈伸", part: "arms", equip: "哑铃", scenes: ["home", "gym"], weighted: true, met: 5, icon: "ic-biceps", sets: 3, reps: "12", muscles: "肱三头" });
+
+  /* 核心 */
+  ex({ name: "平板支撑", part: "core", equip: "瑜伽垫", scenes: ["home", "gym"], weighted: false, met: 4, icon: "ic-plank", sets: 3, reps: "45-60秒", timed: true, muscles: "核心" });
+  ex({ name: "卷腹", part: "core", equip: "瑜伽垫", scenes: ["home", "gym"], weighted: false, met: 4, icon: "ic-core", sets: 3, reps: "15-20", muscles: "上腹" });
+  ex({ name: "俄罗斯转体", part: "core", equip: "瑜伽垫", scenes: ["home", "gym"], weighted: false, met: 4.5, icon: "ic-core", sets: 3, reps: "20", muscles: "腹斜肌" });
+  ex({ name: "登山者", part: "core", equip: "瑜伽垫", scenes: ["home", "gym"], weighted: false, met: 6, icon: "ic-plank", sets: 3, reps: "30秒", timed: true, muscles: "核心·心肺" });
+  ex({ name: "侧平板支撑", part: "core", equip: "瑜伽垫", scenes: ["home", "gym"], weighted: false, met: 4, icon: "ic-plank", sets: 3, reps: "30-45秒", timed: true, muscles: "腹斜肌" });
+  ex({ name: "悬垂举腿", part: "core", equip: "单杠", scenes: ["gym"], weighted: false, met: 5.5, icon: "ic-pullup", sets: 3, reps: "10-12", muscles: "下腹" });
+  ex({ name: "仰卧抬腿", part: "core", equip: "瑜伽垫", scenes: ["home", "gym"], weighted: false, met: 4.5, icon: "ic-core", sets: 3, reps: "15", muscles: "下腹" });
+  ex({ name: "死虫式", part: "core", equip: "瑜伽垫", scenes: ["home", "gym"], weighted: false, met: 3.5, icon: "ic-core", sets: 3, reps: "12/侧", muscles: "深层核心" });
+  ex({ name: "负重卷腹", part: "core", equip: "哑铃", scenes: ["home", "gym"], weighted: true, met: 4.5, icon: "ic-core", sets: 3, reps: "15", muscles: "上腹" });
+  ex({ name: "健腹轮", part: "core", equip: "固定器械", scenes: ["gym"], weighted: false, met: 5, icon: "ic-core", sets: 3, reps: "10-12", muscles: "核心" });
+  ex({ name: "负重俄罗斯转体", part: "core", equip: "药球", scenes: ["home", "gym"], weighted: true, met: 5, icon: "ic-core", sets: 3, reps: "20", muscles: "腹斜肌" });
+  ex({ name: "鸟狗式", part: "core", equip: "瑜伽垫", scenes: ["home", "gym"], weighted: false, met: 3.5, icon: "ic-core", sets: 3, reps: "12/侧", muscles: "核心稳定" });
+
+  /* 有氧（居家/健身房通用） */
+  ex({ name: "波比跳", part: "cardio", equip: "徒手", scenes: ["home", "gym"], weighted: false, met: 9, icon: "ic-cardio", sets: 3, reps: "12", muscles: "全身·心肺" });
+  ex({ name: "高抬腿", part: "cardio", equip: "徒手", scenes: ["home", "gym"], weighted: false, met: 8, icon: "ic-cardio", sets: 3, reps: "30秒", timed: true, muscles: "心肺·腿" });
+  ex({ name: "跳绳", part: "cardio", equip: "徒手", scenes: ["home", "gym"], weighted: false, met: 10, icon: "ic-cardio", sets: 4, reps: "60秒", timed: true, muscles: "心肺" });
+  ex({ name: "开合跳", part: "cardio", equip: "徒手", scenes: ["home", "gym"], weighted: false, met: 8, icon: "ic-cardio", sets: 3, reps: "30秒", timed: true, muscles: "心肺" });
+  ex({ name: "登山跑", part: "cardio", equip: "徒手", scenes: ["home", "gym"], weighted: false, met: 8, icon: "ic-cardio", sets: 3, reps: "30秒", timed: true, muscles: "心肺·核心" });
+  ex({ name: "原地慢跑", part: "cardio", equip: "徒手", scenes: ["home"], weighted: false, met: 7, icon: "ic-run", sets: 1, reps: "20分钟", timed: true, muscles: "心肺" });
+  ex({ name: "动感单车", part: "cardio", equip: "固定器械", scenes: ["gym"], weighted: false, met: 7.5, icon: "ic-cycle", sets: 1, reps: "30分钟", timed: true, muscles: "心肺·腿" });
+  ex({ name: "跑步机", part: "cardio", equip: "固定器械", scenes: ["gym"], weighted: false, met: 8, icon: "ic-run", sets: 1, reps: "30分钟", timed: true, muscles: "心肺" });
+  ex({ name: "划船机", part: "cardio", equip: "固定器械", scenes: ["gym"], weighted: false, met: 8.5, icon: "ic-machine", sets: 1, reps: "20分钟", timed: true, muscles: "全身·心肺" });
+  ex({ name: "爬楼机", part: "cardio", equip: "固定器械", scenes: ["gym"], weighted: false, met: 9, icon: "ic-machine", sets: 1, reps: "20分钟", timed: true, muscles: "心肺·腿臀" });
+
+  /* 拉伸 / 放松 */
+  ex({ name: "瑜伽垫拉伸放松", part: "stretch", equip: "瑜伽垫", scenes: ["home", "gym"], weighted: false, met: 2.5, icon: "ic-yoga", sets: 1, reps: "10分钟", timed: true, muscles: "全身" });
+  ex({ name: "泡沫轴放松", part: "stretch", equip: "瑜伽垫", scenes: ["home", "gym"], weighted: false, met: 2.5, icon: "ic-yoga", sets: 1, reps: "10分钟", timed: true, muscles: "筋膜" });
+  ex({ name: "猫牛式", part: "stretch", equip: "瑜伽垫", scenes: ["home", "gym"], weighted: false, met: 2.5, icon: "ic-yoga", sets: 2, reps: "10", muscles: "脊柱" });
+  ex({ name: "髋屈肌拉伸", part: "stretch", equip: "瑜伽垫", scenes: ["home", "gym"], weighted: false, met: 2.5, icon: "ic-stretch", sets: 2, reps: "30秒/侧", timed: true, muscles: "髋·股四头" });
+  ex({ name: "胸肩拉伸", part: "stretch", equip: "徒手", scenes: ["home", "gym"], weighted: false, met: 2.5, icon: "ic-stretch", sets: 2, reps: "30秒/侧", timed: true, muscles: "胸·肩" });
+  ex({ name: "腘绳肌拉伸", part: "stretch", equip: "瑜伽垫", scenes: ["home", "gym"], weighted: false, met: 2.5, icon: "ic-stretch", sets: 2, reps: "30秒/侧", timed: true, muscles: "腘绳·小腿" });
+  ex({ name: "肩颈放松", part: "stretch", equip: "徒手", scenes: ["home"], weighted: false, met: 2.5, icon: "ic-stretch", sets: 2, reps: "30秒/侧", timed: true, muscles: "斜方肌·颈部" });
+  ex({ name: "婴儿式", part: "stretch", equip: "瑜伽垫", scenes: ["home", "gym"], weighted: false, met: 2, icon: "ic-yoga", sets: 2, reps: "60秒", timed: true, muscles: "背·髋" });
+  ex({ name: "脊柱扭转", part: "stretch", equip: "瑜伽垫", scenes: ["home", "gym"], weighted: false, met: 2, icon: "ic-yoga", sets: 2, reps: "30秒/侧", timed: true, muscles: "脊柱·腰背" });
+  ex({ name: "小腿拉伸", part: "stretch", equip: "徒手", scenes: ["home", "gym"], weighted: false, met: 2.5, icon: "ic-stretch", sets: 2, reps: "30秒/侧", timed: true, muscles: "小腿" });
+  ex({ name: "开肩扩胸", part: "stretch", equip: "徒手", scenes: ["home", "gym"], weighted: false, met: 2.5, icon: "ic-stretch", sets: 2, reps: "30秒", timed: true, muscles: "胸·肩" });
+
+  /* 补充：核心 / 有氧 / 器械 */
+  ex({ name: "侧卷腹", part: "core", equip: "瑜伽垫", scenes: ["home", "gym"], weighted: false, met: 4, icon: "ic-core", sets: 3, reps: "15/侧", muscles: "腹斜肌" });
+  ex({ name: "空中自行车", part: "core", equip: "瑜伽垫", scenes: ["home", "gym"], weighted: false, met: 4.5, icon: "ic-core", sets: 3, reps: "20", muscles: "腹直肌·腹斜肌" });
+  ex({ name: "绳索卷腹", part: "core", equip: "绳索", scenes: ["gym"], weighted: true, met: 5, icon: "ic-machine", sets: 3, reps: "15", muscles: "上腹" });
+  ex({ name: "农夫行走", part: "core", equip: "哑铃", scenes: ["home", "gym"], weighted: true, met: 6, icon: "ic-dumbbell", sets: 3, reps: "30米", muscles: "核心·握力" });
+  ex({ name: "椭圆机", part: "cardio", equip: "固定器械", scenes: ["gym"], weighted: false, met: 7, icon: "ic-machine", sets: 1, reps: "30分钟", timed: true, muscles: "心肺" });
+  ex({ name: "战绳", part: "cardio", equip: "固定器械", scenes: ["gym"], weighted: false, met: 9, icon: "ic-cardio", sets: 4, reps: "30秒", timed: true, muscles: "全身·心肺" });
+  ex({ name: "深蹲跳箱", part: "cardio", equip: "徒手", scenes: ["home"], weighted: false, met: 8, icon: "ic-cardio", sets: 3, reps: "12", muscles: "腿·心肺" });
+  ex({ name: "原地蹬车", part: "cardio", equip: "徒手", scenes: ["home"], weighted: false, met: 7, icon: "ic-cardio", sets: 3, reps: "30秒", timed: true, muscles: "核心·心肺" });
+  ex({ name: "器械夹胸", part: "chest", equip: "固定器械", scenes: ["gym"], weighted: true, met: 5.5, icon: "ic-machine", sets: 3, reps: "12-15", muscles: "胸中缝" });
+  ex({ name: "哑铃仰卧上拉", part: "chest", equip: "哑铃", scenes: ["home", "gym"], weighted: true, met: 5.5, icon: "ic-dumbbell", sets: 3, reps: "12-15", muscles: "胸·背阔" });
+  ex({ name: "杠铃划船上斜", part: "back", equip: "杠铃", scenes: ["gym"], weighted: true, met: 6, icon: "ic-barbell", sets: 3, reps: "10-12", muscles: "上背" });
+  ex({ name: "单臂绳索划船", part: "back", equip: "绳索", scenes: ["gym"], weighted: true, met: 6, icon: "ic-machine", sets: 3, reps: "12/侧", muscles: "背阔肌" });
+  ex({ name: "哑铃耸肩划船", part: "back", equip: "哑铃", scenes: ["home"], weighted: true, met: 5.5, icon: "ic-dumbbell", sets: 3, reps: "12", muscles: "上背·斜方" });
+
+  /* 按场景取动作库 */
+  function exLibForScene(scene) {
+    return EX_LIB.filter(function (a) { return a.scenes.indexOf(scene) !== -1; });
+  }
+  /* 按部位 + 场景取动作 */
+  function exLibByPart(part, scene) {
+    return EX_LIB.filter(function (a) {
+      return a.part === part && a.scenes.indexOf(scene) !== -1;
+    });
+  }
+  /* 文本格式（兼容旧 parsePlanItem / 打卡记录展示） */
+  function exToText(a) {
+    var unit = a.timed ? "" : "次";
+    return a.name + " " + a.sets + "组 × " + a.reps;
+  }
+  function findExerciseByName(name) {
+    for (var i = 0; i < EX_LIB.length; i++) if (EX_LIB[i].name === name) return EX_LIB[i];
+    return null;
+  }
+  /* 按 id 索引动作（id 形如 "e0"），供任务绑定 */
+  var EX_BY_ID = {};
+  EX_LIB.forEach(function (a) { EX_BY_ID[a.id] = a; });
+  function exById(id) { return (id != null && EX_BY_ID[id]) ? EX_BY_ID[id] : null; }
+
+  /* 旧版纯文本动作库，仅用于兼容老数据解析（新代码不再使用） */
+  var LEGACY_EXERCISE_LIB = [
+    { part: "胸", emoji: "🫁", items: ["哑铃卧推 4组 × 8-10", "上斜哑铃卧推 3组 × 10-12", "哑铃飞鸟 3组 × 12-15", "俯卧撑 3组 × 力竭", "凳上臂屈伸（三头） 3组 × 10-12"] },
+    { part: "背", emoji: "💪", items: ["杠铃俯身划船 4组 × 8-10", "哑铃单臂划船 3组 × 10-12", "反向划船（桌下） 3组 × 10-12", "俯身哑铃反向飞鸟 3组 × 15", "面拉 3组 × 15"] },
+    { part: "腿", emoji: "🦵", items: ["杠铃深蹲 4组 × 8-10", "哑铃箭步蹲 3组 × 10/腿", "罗马尼亚硬拉（杠铃） 3组 × 10-12", "保加利亚分腿蹲 3组 × 10/腿", "站姿提踵 4组 × 15-20"] },
+    { part: "肩", emoji: "🤸", items: ["哑铃肩上推举 3组 × 10-12", "哑铃侧平举 3组 × 12-15", "哑铃前平举 3组 × 12", "俯身哑铃反向飞鸟 3组 × 15", "杠铃前平举 3组 × 12"] },
+    { part: "臂", emoji: "💪", items: ["哑铃交替弯举 3组 × 10-12", "锤式弯举 3组 × 12", "仰卧臂屈伸 3组 × 10-12", "窄距俯卧撑 3组 × 力竭", "凳上臂屈伸 3组 × 10-12"] },
+    { part: "核心", emoji: "🔥", items: ["平板支撑 3组 × 45-60秒", "卷腹 3组 × 15-20", "俄罗斯转体 3组 × 20", "登山者 3组 × 30秒", "臀桥 3组 × 15"] },
+    { part: "有氧/热身", emoji: "🏃", items: ["慢跑 20分钟", "波比跳 3组 × 12", "开合跳 3组 × 30", "高抬腿 3组 × 30秒", "瑜伽垫拉伸放松 10分钟"] }
   ];
 
   /* ---------- 应用版本（主界面右上角标识，确认是否运行最新版） ---------- */
-  var APP_VERSION = "2.9.1";
+  var APP_VERSION = "3.0.9";
 
   /* ---------- 数据层（单机版：统一存储，无登录） ---------- */
   var DATA_KEY = "fitapp_data";
-  var DEFAULT_WEIGHT = 72;   // 默认体重(kg)，用于卡路里估算；可在「统计-设置」里修改
+  var DEFAULT_WEIGHT = 72;   // 默认体重(kg)
+  var DEFAULT_HEIGHT = 180;  // 默认身高(cm)
+  var DEFAULT_AGE = 25;      // 默认年龄
   var currentUser = "我";   // 单机模式内部标记，无登录
-  var data = { records: {}, tasks: {}, plan: null, recDismiss: {}, wizResume: 0, weight: DEFAULT_WEIGHT };
+  /* 单机数据模型（v3.0 重构：checkedIn 由动作完成度派生，不再手动写状态位） */
+  function blankData() {
+    return {
+      records: {},       // 每日记录 { date, checkedIn, exercises[], actions[] }
+      tasks: {},         // 每日任务
+      plan: null,
+      recDismiss: {},
+      wizResume: 0,
+      weight: DEFAULT_WEIGHT,
+      height: DEFAULT_HEIGHT,
+      age: DEFAULT_AGE,
+      gender: "male",    // male | female
+      scene: "home",     // home | gym ：当前训练场景
+      username: "",      // 用户名（用于首页问候等个性化称呼）
+      theme: "snow",     // 主题 key（空或 plain = 蓝白；night/snow/neon/warm）；默认「雪光柔白」
+      wallpaper: "",     // 自定义壁纸 dataURL（空则用内置壁纸）
+      profileDone: false // 是否已确认过「默认信息」（首次引导完成后置 true）
+    };
+  }
+  var data = blankData();
 
   function storeKeyFor() { return DATA_KEY; }
 
@@ -166,7 +300,15 @@
       if (!data.recDismiss) data.recDismiss = {};
       if (typeof data.wizResume !== "number" || isNaN(data.wizResume)) data.wizResume = 0;
       if (typeof data.weight !== "number" || isNaN(data.weight) || data.weight <= 0) data.weight = DEFAULT_WEIGHT;
-    } catch (e) { data = { records: {}, tasks: {}, plan: null, recDismiss: {}, wizResume: 0, weight: DEFAULT_WEIGHT }; }
+      if (typeof data.height !== "number" || isNaN(data.height) || data.height <= 0) data.height = DEFAULT_HEIGHT;
+      if (typeof data.age !== "number" || isNaN(data.age) || data.age <= 0) data.age = DEFAULT_AGE;
+      if (data.gender !== "male" && data.gender !== "female") data.gender = "male";
+      if (data.scene !== "home" && data.scene !== "gym") data.scene = "home";
+      if (typeof data.username !== "string") data.username = "";
+      if (typeof data.theme !== "string") data.theme = "";
+      if (typeof data.wallpaper !== "string") data.wallpaper = "";
+      if (typeof data.profileDone !== "boolean") data.profileDone = false;
+    } catch (e) { data = blankData(); }
   }
   function save() {
     try { localStorage.setItem(DATA_KEY, JSON.stringify(data)); } catch (e) {}
@@ -271,17 +413,18 @@
     $("statTotal").textContent = s.total;
 
     var checked = isChecked(tk);
+    var np = namePrefix();
     var btn = $("checkinBtn");
     if (checked) {
       btn.classList.add("done");
       $("checkinText").textContent = "已打卡 ✓";
       $("heroHint").textContent = "点击可继续记录，或打开弹层撤销";
-      $("heroGreet").textContent = "今天已完成，继续保持！";
+      $("heroGreet").textContent = np + "今天已完成，继续保持！";
     } else {
       btn.classList.remove("done");
       $("checkinText").textContent = "今日打卡";
       $("heroHint").textContent = "点击按钮，记录今天的坚持";
-      $("heroGreet").textContent = s.current > 0 ? "昨天坚持了，今天继续！" : "今天也要加油 💪";
+      $("heroGreet").textContent = np + (s.current > 0 ? "昨天坚持了，今天继续！" : "今天也要加油 💪");
     }
 
     var r = getRecord(tk);
@@ -296,7 +439,6 @@
       list.appendChild(empty);
     }
     renderTasks();
-    renderRecommend();
     renderTodayActions();
     renderCalSummary();
   }
@@ -327,35 +469,54 @@
     return row;
   }
 
-  /* 按星期几推荐今日训练（横幅） */
-  function renderRecommend() {
-    var box = $("recoBanner");
-    if (!box) return;
+  /* 按当前场景 + 近 N 天去重，随机组合今日训练（横幅）。返回动作对象数组 */
+  function pickDailyWorkout(scene, maxCount) {
+    maxCount = maxCount || 6;
+    var lib = exLibForScene(scene);
+    /* 近期已练动作名（含今日任务 + 近 14 天记录），用于降重 */
+    var recent = {};
     var today = todayKey();
-    if (data.recDismiss && data.recDismiss[today]) { box.hidden = true; box.innerHTML = ""; return; }
-    var now = new Date();
-    var sc = SCHEDULE[now.getDay()];
-    if (!sc) { box.hidden = true; return; }
-    if (sc.type === "rest") {
-      box.innerHTML =
-        '<div class="reco-ico">🧘</div>' +
-        '<div class="reco-main"><div class="reco-title">今天休息日 · 放松恢复</div>' +
-        '<div class="reco-sub">' + escapeHtml(sc.name) + '</div></div>' +
-        '<button class="reco-x" data-act="dismiss">✕</button>';
-      box.hidden = false;
-      return;
-    }
-    var day = null;
-    DEFAULT_PLAN.days.forEach(function (d) { if (d.id === sc.day) day = d; });
-    if (!day) { box.hidden = true; return; }
-    box.innerHTML =
-      '<div class="reco-ico">💪</div>' +
-      '<div class="reco-main"><div class="reco-title">今天是' + WEEK[now.getDay()] + ' · 推荐练 ' + escapeHtml(day.name) + '</div>' +
-      '<div class="reco-sub">一键载入今日任务，跟着练</div></div>' +
-      '<button class="reco-btn" data-act="load" data-day="' + day.id + '">载入</button>' +
-      '<button class="reco-x" data-act="dismiss">✕</button>';
-    box.hidden = false;
+    getTasks(today).forEach(function (t) { recent[t.text.split(" ")[0]] = 2; }); // 今天已排的强排除
+    var days = lastNDays(14);
+    days.forEach(function (k) {
+      var r = data.records[k];
+      if (!r) return;
+      if (r.actions) r.actions.forEach(function (a) { recent[a.text.split(" ")[0]] = 1; });
+    });
+    /* 部位轮换：优先选择近 14 天未练部位的动作 */
+    var byPart = {};
+    lib.forEach(function (a) { (byPart[a.part] = byPart[a.part] || []).push(a); });
+    var partIds = Object.keys(byPart);
+    var out = [];
+    /* 每个部位挑 1 个候选池，按「未最近练过」优先 + 加权随机 */
+    partIds.forEach(function (p) {
+      var pool = byPart[p].filter(function (a) { return !recent[a.name]; });
+      if (!pool.length) pool = byPart[p].slice();          // 全练过则回退全部
+      /* 排除今天已排的（若有） */
+      pool.sort(function () { return Math.random() - 0.5; });
+      if (pool[0]) out.push(pool[0]);
+    });
+    /* 打乱部位顺序后截取 */
+    out.sort(function () { return Math.random() - 0.5; });
+    return out.slice(0, maxCount);
   }
+
+  /* 按推荐组合生成今日任务 */
+  function loadRecommend() {
+    var scene = data.scene || "home";
+    var picks = pickDailyWorkout(scene, 6);
+    if (!picks.length) { toast("当前场景暂无可用动作"); return; }
+    var tk = todayKey();
+    var existing = getTasks(tk);
+    if (existing.length && !confirm("今日已有 " + existing.length + " 项任务，用推荐组合替换？")) return;
+    data.tasks[tk] = picks.map(function (a) { return taskFromExercise(a); });
+    save();
+    showTab("today");
+    renderTasks();
+    toast("已载入推荐训练（" + picks.length + " 个动作）");
+  }
+
+  /* 今日推荐横幅已移除：改为「今日任务」标题右侧的小「载入」按钮（绑定见 bind → #taskLoadBtn） */
 
   function exRow(e) {
     var t = TYPE_MAP[e.type] || TYPE_MAP.other;
@@ -365,8 +526,9 @@
     var meta = [];
     if (e.duration) meta.push(e.duration + " 分钟");
     if (e.calories) meta.push(e.calories + " 千卡");
+    var ic = t.icon || "ic-other";
     row.innerHTML =
-      '<div class="ex-emoji">' + t.emoji + '</div>' +
+      '<div class="ex-emoji"><svg viewBox="0 0 24 24" style="width:24px;height:24px"><use href="#' + ic + '"></use></svg></div>' +
       '<div class="ex-main"><div class="ex-name">' + escapeHtml(dispName) + '</div>' +
       '<div class="ex-meta">' + (meta.length ? meta.join(" · ") : "已记录") +
       (e.note ? " · " + escapeHtml(e.note) : "") + '</div></div>';
@@ -393,12 +555,12 @@
       var c = document.createElement("div");
       c.className = "task-current-card";
       c.innerHTML =
-        '<div class="tc-label">当前动作</div>' +
-        '<div class="tc-text">' + escapeHtml(cur.text) + taskKcalHtml(cur) + '</div>' +
+        '<div class="tc-head"><span class="tc-label">当前动作</span>' + taskStatusHtml(cur) + '</div>' +
+        '<div class="tc-text">' + taskIconHtml(cur) + escapeHtml(cur.text) + taskKcalHtml(cur) + '</div>' +
         taskFieldsHtml(cur) +
         '<div class="tc-actions">' +
         '<button class="tc-replace" data-id="' + cur.id + '">更换动作</button>' +
-        taskStatusHtml(cur) +
+        '<button class="tc-del" data-id="' + cur.id + '" title="删除动作">✕</button>' +
         '</div>';
       curBox.appendChild(c);
     } else if (tasks.length) {
@@ -415,25 +577,45 @@
 
     var list = $("taskList");
     list.innerHTML = "";
+    // 当前动作已在顶部放大卡展示，列表里不再重复（避免一条动作出现两次）
     tasks.forEach(function (t) {
+      if (cur && cur.id === t.id) return;
       var row = document.createElement("div");
-      row.className = "task-item" + (t.done ? " done" : "") + (cur && cur.id === t.id ? " current" : "");
+      row.className = "task-item" + (t.done ? " done" : "");
       row.innerHTML =
         taskStatusHtml(t) +
-        '<div class="task-text">' + escapeHtml(t.text) + taskKcalHtml(t) + '</div>' +
+        '<div class="task-text">' + taskIconHtml(t) + escapeHtml(t.text) + taskKcalHtml(t) + '</div>' +
         '<button class="task-replace" data-id="' + t.id + '">更换</button>' +
         '<button class="task-del" data-id="' + t.id + '">✕</button>' +
         taskFieldsHtml(t);
       list.appendChild(row);
     });
   }
-  /* 重量/组数/次数 输入控件 HTML */
+  /* 重量/组数/次数 输入控件 HTML（自适应：自重动作不显示「重量」输入） */
   function taskFieldsHtml(t) {
-    return '<div class="task-fields">' +
-      '<div class="tf"><label>重量kg</label><input type="number" inputmode="decimal" class="tf-w" data-id="' + t.id + '" placeholder="—" value="' + escapeHtml(t.w || "") + '"></div>' +
-      '<div class="tf"><label>组数</label><input type="number" inputmode="numeric" class="tf-s" data-id="' + t.id + '" placeholder="—" value="' + escapeHtml(t.s || "") + '"></div>' +
-      '<div class="tf"><label>次数</label><input type="number" inputmode="numeric" class="tf-r" data-id="' + t.id + '" placeholder="—" value="' + escapeHtml(t.r || "") + '"></div>' +
-      '</div>';
+    var needW = isWeightedTask(t);
+    var isTimed = isTimedTask(t);
+    var rLabel = isTimed ? "时长(秒)" : "次数";
+    var rPh = isTimed ? "如45" : "—";
+    var html = '<div class="task-fields">';
+    if (needW) {
+      html += '<div class="tf"><label>重量kg</label><input type="number" inputmode="decimal" class="tf-w" data-id="' + t.id + '" placeholder="—" value="' + escapeHtml(t.w || "") + '"></div>';
+    } else {
+      html += '<div class="tf"><label>类型</label><div class="tf-static">自重</div></div>';
+    }
+    html += '<div class="tf"><label>组数</label><input type="number" inputmode="numeric" class="tf-s" data-id="' + t.id + '" placeholder="—" value="' + escapeHtml(t.s || "") + '"></div>';
+    html += '<div class="tf"><label>' + rLabel + '</label><input type="number" inputmode="numeric" class="tf-r" data-id="' + t.id + '" placeholder="' + rPh + '" value="' + escapeHtml(t.r || "") + '"></div>';
+    html += '</div>';
+    return html;
+  }
+  /* 任务图标 HTML（线型 SVG）；无图标返回空 */
+  function taskIconHtml(t) {
+    var ic = t.icon;
+    if (!ic) {
+      var ex = t.exid != null ? exById(t.exid) : findExerciseByName(String(t.text || "").split(" ")[0]);
+      ic = ex ? ex.icon : (t.part && PART_MAP[t.part] ? PART_MAP[t.part].icon : "ic-bodyweight");
+    }
+    return '<svg class="ex-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#' + ic + '"></use></svg>';
   }
   /* 动作完成状态徽标：已完成 / 未完成（取代原「完成」按钮） */
   function taskStatusHtml(t) {
@@ -447,6 +629,7 @@
   }
 
   /* 首页「今日预计消耗」汇总卡 + 按类型彩色拆分条 */
+  /* 首页「今日消耗」：环形图（按运动类型占比着色，中心显示总消耗） */
   function renderCalSummary() {
     var box = $("calSummary");
     if (!box) return;
@@ -471,25 +654,44 @@
 
     var total = segs.reduce(function (s, x) { return s + x.val; }, 0);
     $("calSumNum").textContent = total;
-    var bar = $("calTypeBar");
-    bar.innerHTML = "";
-    if (!total) { $("calSumEmpty").hidden = false; $("calTypeLegend").innerHTML = ""; return; }
-    $("calSumEmpty").hidden = true;
-    segs.forEach(function (x) {
-      var seg = document.createElement("div");
-      seg.className = "cal-seg";
-      seg.style.width = (x.val / total * 100) + "%";
-      seg.style.background = x.color;
-      seg.title = x.name + " · " + x.val + " 千卡";
-      seg.innerHTML = (x.val / total > 0.12) ? "<span>" + x.name + "</span>" : "";
-      bar.appendChild(seg);
-    });
+
+    var ring = $("calRing");
     var legend = $("calTypeLegend");
+    if (!ring) return;
+
+    if (!total) {
+      $("calSumEmpty").hidden = false;
+      if (legend) legend.innerHTML = "";
+      ring.innerHTML = "";
+      return;
+    }
+    $("calSumEmpty").hidden = true;
+
+    /* 环形：r=52，周长 C；用 stroke-dasharray / dashoffset 按占比拼接（起始 12 点方向） */
+    var R = 52;
+    var C = 2 * Math.PI * R;
+    var acc = 0;
+    var svg = '<circle class="ring-track" cx="60" cy="60" r="' + R + '" fill="none" stroke="currentColor" stroke-width="13"></circle>' +
+      '<g transform="rotate(-90 60 60)">';
+    segs.forEach(function (x) {
+      var len = (x.val / total) * C;
+      var gap = Math.max(C - len, 0);
+      svg += '<circle class="ring-seg" cx="60" cy="60" r="' + R + '" fill="none" stroke="' + x.color + '" stroke-width="13"' +
+        ' stroke-dasharray="' + len.toFixed(2) + ' ' + gap.toFixed(2) + '"' +
+        ' stroke-dashoffset="' + (-acc).toFixed(2) + '"><title>' + escapeHtml(x.name + " · " + x.val + " 千卡") + '</title></circle>';
+      acc += len;
+    });
+    svg += "</g>";
+    ring.innerHTML = svg;
+
+    if (!legend) return;
     legend.innerHTML = "";
     segs.forEach(function (x) {
-      var lg = document.createElement("span");
+      var lg = document.createElement("div");
       lg.className = "cal-legend-item";
-      lg.innerHTML = '<span class="cal-dot" style="background:' + x.color + '"></span>' + x.name + " " + x.val;
+      lg.innerHTML = '<span class="cal-dot" style="background:' + x.color + '"></span>' +
+        '<span class="cal-legend-name">' + escapeHtml(x.name) + '</span>' +
+        '<span class="cal-legend-val">' + x.val + '</span>';
       legend.appendChild(lg);
     });
   }
@@ -597,7 +799,7 @@
     toast("已更换动作");
   }
 
-  /* ---------- 动作库添加（按部位选动作） ---------- */
+  /* ---------- 动作库添加（按部位选动作，场景感知 + 图标） ---------- */
   var libPartIdx = 0;
   function openAddLib() {
     libPartIdx = 0;
@@ -607,41 +809,67 @@
     $("addLibOverlay").hidden = false;
   }
   function closeAddLib() { $("addLibOverlay").hidden = true; }
+  /* 与推荐/任务共用：结构化动作 → 任务对象 */
+  function taskFromExercise(a) {
+    return {
+      id: "t" + Date.now() + Math.floor(Math.random() * 1000),
+      text: a.name, done: false, src: "lib",
+      w: "", s: String(a.sets || ""), r: String(a.reps || ""),
+      exid: a.id, weighted: !!a.weighted, timed: !!a.timed,
+      icon: a.icon, part: a.part, equip: a.equip
+    };
+  }
   function renderLibParts() {
     var box = $("libParts");
     box.innerHTML = "";
-    EXERCISE_LIB.forEach(function (g, i) {
+    var scene = data.scene || "home";
+    PARTS.forEach(function (p, i) {
+      var cnt = exLibByPart(p.id, scene).length;
+      if (!cnt) return;
       var c = document.createElement("div");
-      c.className = "lib-part" + (i === libPartIdx ? " sel" : "");
-      c.textContent = g.emoji + " " + g.part;
-      c.setAttribute("data-idx", i);
+      c.className = "lib-part" + ((p.id === curLibPartId()) ? " sel" : "");
+      c.setAttribute("data-pid", p.id);
+      c.innerHTML = '<svg class="ex-icon-sm"><use href="#' + p.icon + '"></use></svg>' + p.name;
       box.appendChild(c);
     });
+    if (!box.children.length) {
+      box.innerHTML = '<div class="lib-part sel">当前场景暂无动作</div>';
+    }
+  }
+  function curLibPartId() {
+    var scene = data.scene || "home";
+    var ids = PARTS.filter(function (p) { return exLibByPart(p.id, scene).length; }).map(function (p) { return p.id; });
+    if (!ids.length) return null;
+    if (libPartIdx >= ids.length) libPartIdx = 0;
+    return ids[libPartIdx];
   }
   function renderLibList() {
     var box = $("libList");
     box.innerHTML = "";
-    var g = EXERCISE_LIB[libPartIdx];
-    g.items.forEach(function (it) {
-      var p = parsePlanItem(it);
-      var meta = [];
-      if (p.s) meta.push(p.s + "组");
-      if (p.r) meta.push("×" + p.r);
+    var scene = data.scene || "home";
+    var pid = curLibPartId();
+    if (!pid) { box.innerHTML = '<div class="day-empty">当前场景没有可用动作，试试切换场景</div>'; return; }
+    var list = exLibByPart(pid, scene);
+    list.forEach(function (a) {
       var row = document.createElement("div");
       row.className = "lib-item";
       row.innerHTML =
-        '<div class="lib-item-name">' + escapeHtml(it) + '</div>' +
-        (meta.length ? '<div class="lib-item-meta">' + meta.join(" · ") + '</div>' : '');
-      row.addEventListener("click", function () { addExerciseFromLib(it); });
+        '<div class="lib-ico"><svg><use href="#' + (a.icon || PART_MAP[a.part].icon) + '"></use></svg></div>' +
+        '<div class="lib-item-main"><div class="lib-item-name">' + escapeHtml(a.name) + '</div>' +
+        '<div class="lib-item-meta">' + a.sets + '组 × ' + escapeHtml(a.reps) + ' · ' + escapeHtml(a.equip) +
+        (a.weighted ? '' : ' · 自重') + '</div></div>' +
+        '<div class="lib-item-add">＋</div>';
+      row.addEventListener("click", function () { addExerciseFromLib(a); });
       box.appendChild(row);
     });
   }
-  function addExerciseFromLib(text) {
-    getTasks(todayKey()).push(buildTaskFromPlanItem(text));
+  function addExerciseFromLib(a) {
+    var t = (a && typeof a === "object") ? taskFromExercise(a) : buildTaskFromPlanItem(a);
+    getTasks(todayKey()).push(t);
     syncCheckin();   // 新增动作必为未完成 -> 若有“已打卡”则立即取消
     save();
     refreshAll();
-    toast("已添加：" + text.split(" ")[0]);
+    toast("已添加：" + t.text);
   }
 
   /* ---------- 渲染：日历 ---------- */
@@ -861,7 +1089,7 @@
     save();
     closeSheet();
     refreshAll();
-    toast(editDate === todayKey() ? "打卡成功 🔥" : "已保存");
+    toast(editDate === todayKey() ? (namePrefix() + "打卡成功 🔥") : "已保存");
   }
 
   function undoToday() {
@@ -950,13 +1178,13 @@
       var x = 10 + bw * i + bw * 0.2;
       var bwReal = bw * 0.6;
       var y = h - padB - bh;
-      ctx.fillStyle = isChecked(keys[i]) ? "#11998e" : "#d9e6e3";
+      ctx.fillStyle = isChecked(keys[i]) ? "#2563EB" : "#DBE6FF";
       roundRect(ctx, x, y, bwReal, bh, 5); ctx.fill();
-      ctx.fillStyle = "#7a8a88";
+      ctx.fillStyle = "#64748B";
       ctx.font = "11px sans-serif";
       ctx.fillText(String(new Date(keys[i] + "T00:00:00").getDate()), cx, h - 6);
       if (vals[i] > 0) {
-        ctx.fillStyle = "#1c2b2a";
+        ctx.fillStyle = "#0F172A";
         ctx.font = "10px sans-serif";
         ctx.fillText(vals[i], cx, y - 4);
       }
@@ -976,15 +1204,15 @@
     function py(v) { return padT + plotH * (1 - v / max); }
 
     // grid
-    ctx.strokeStyle = "#eef3f2"; ctx.lineWidth = 1;
+    ctx.strokeStyle = "#EEF2F7"; ctx.lineWidth = 1;
     for (var g = 0; g <= 3; g++) {
       var gy = padT + (plotH * g) / 3;
       ctx.beginPath(); ctx.moveTo(padL, gy); ctx.lineTo(w - padR, gy); ctx.stroke();
     }
     // area
     var grad = ctx.createLinearGradient(0, padT, 0, padT + plotH);
-    grad.addColorStop(0, "rgba(17,153,142,0.30)");
-    grad.addColorStop(1, "rgba(17,153,142,0.02)");
+    grad.addColorStop(0, "rgba(37,99,235,0.30)");
+    grad.addColorStop(1, "rgba(37,99,235,0.02)");
     ctx.beginPath();
     ctx.moveTo(px(0), py(vals[0]));
     for (var i = 1; i < vals.length; i++) ctx.lineTo(px(i), py(vals[i]));
@@ -995,16 +1223,16 @@
     ctx.beginPath();
     ctx.moveTo(px(0), py(vals[0]));
     for (var j = 1; j < vals.length; j++) ctx.lineTo(px(j), py(vals[j]));
-    ctx.strokeStyle = "#11998e"; ctx.lineWidth = 2; ctx.stroke();
+    ctx.strokeStyle = "#2563EB"; ctx.lineWidth = 2; ctx.stroke();
     // points (checked days)
     for (var p = 0; p < vals.length; p++) {
       if (isChecked(keys[p])) {
         ctx.beginPath(); ctx.arc(px(p), py(vals[p]), 2.5, 0, Math.PI * 2);
-        ctx.fillStyle = "#11998e"; ctx.fill();
+        ctx.fillStyle = "#2563EB"; ctx.fill();
       }
     }
     // x labels
-    ctx.fillStyle = "#7a8a88"; ctx.font = "10px sans-serif"; ctx.textAlign = "center";
+    ctx.fillStyle = "#64748B"; ctx.font = "10px sans-serif"; ctx.textAlign = "center";
     ctx.fillText("30天前", px(0), h - 4);
     ctx.fillText("今天", px(vals.length - 1), h - 4);
   }
@@ -1021,9 +1249,47 @@
     ctx.closePath();
   }
 
-  /* ---------- 训练计划 ---------- */
-  function ensurePlan() {
-    if (!data.plan) { data.plan = DEFAULT_PLAN; save(); }
+  /* ---------- 训练计划（按场景动态生成：推 / 拉 / 腿 分化） ---------- */
+  /* 计划模板：每个训练日的部位组合 */
+  var PLAN_TEMPLATES = [
+    { id: "A", name: "A · 推（胸·肩·三头）", parts: ["chest", "shoulder", "arms"] },
+    { id: "B", name: "B · 拉（背·二头）", parts: ["back", "arms"] },
+    { id: "C", name: "C · 腿臀（股·臀·核心）", parts: ["legs", "core"] },
+    { id: "D", name: "D · 全身+有氧", parts: ["chest", "back", "legs", "core", "cardio"] }
+  ];
+  /* 依据当前场景生成计划（每次调用按近 14 天去重挑选） */
+  function buildPlan() {
+    var scene = data.scene || "home";
+    var sceneName = SCENES[scene] ? SCENES[scene].name : "居家";
+    var days = PLAN_TEMPLATES.map(function (tpl) {
+      var items = [];
+      tpl.parts.forEach(function (p) {
+        var pool = exLibByPart(p, scene);
+        if (!pool.length) return;
+        /* 每个部位挑 1-2 个，优先随机化以增加多样性 */
+        var shuffled = pool.slice().sort(function () { return Math.random() - 0.5; });
+        var take = Math.min(shuffled.length, p === "cardio" ? 1 : 2);
+        items = items.concat(shuffled.slice(0, take));
+      });
+      return {
+        id: tpl.id, name: tpl.name,
+        items: items.map(function (a) { return a.name + " " + a.sets + "组 × " + a.reps; })
+      };
+    });
+    return {
+      note: "为「" + getHeight() + "cm / " + getWeight() + "kg · " + sceneName + " · 器械：" +
+        sceneEquipText(scene) + "」生成的每周 4 练计划（推/拉/腿/全身+有氧），隔天休息。组间休 60-90 秒，动作标准优先。",
+      rest: "休息日：拉伸 / 泡沫轴 / 散步 20-30 分钟，保持活动、促进恢复。",
+      days: days
+    };
+  }
+  function sceneEquipText(scene) {
+    return scene === "gym" ? "固定器械 / 哑铃 / 杠铃 / 绳索" : "哑铃 / 杠铃 / 瑜伽垫";
+  }
+  function ensurePlan(refresh) {
+    if (refresh || !data.plan || !data.plan.days || !data.plan.days.length) {
+      data.plan = buildPlan(); save();
+    }
   }
   function getPlanDay(dayId) {
     if (!data.plan) return null;
@@ -1040,23 +1306,32 @@
     return { s: s, r: r };
   }
   function renderPlan() {
+    ensurePlan();
     if (!data.plan) return;
     $("planIntro").textContent = data.plan.note || "";
     var list = $("planList");
     list.innerHTML = "";
+    var todayId = planDayIdFor(new Date().getDay());
     data.plan.days.forEach(function (d) {
+      var isToday = (d.id === todayId);
       var card = document.createElement("div");
-      card.className = "plan-card";
-      var items = d.items.map(function (it) { return "<li>" + escapeHtml(it) + "</li>"; }).join("");
+      card.className = "plan-card" + (isToday ? " today" : "");
+      var items = d.items.map(function (it) {
+        var a = findExerciseByName(it.split(" ")[0]);
+        var ic = a ? '<svg class="ex-icon-sm" style="margin-right:6px;vertical-align:-2px"><use href="#' + (a.icon || PART_MAP[a.part].icon) + '"></use></svg>' : "";
+        return "<li>" + ic + escapeHtml(it) + "</li>";
+      }).join("");
       card.innerHTML =
-        '<div class="plan-name">' + escapeHtml(d.name) + '</div>' +
+        '<div class="plan-name">' + escapeHtml(d.name) +
+        (isToday ? '<span class="plan-today-tag">今天</span>' : '') + '</div>' +
         '<ul class="plan-items">' + items + '</ul>' +
-        '<button class="plan-load" data-day="' + d.id + '">载入今日</button>';
+        '<button class="plan-load" data-day="' + d.id + '">' + (isToday ? "载入今日" : "练这一天") + '</button>';
       list.appendChild(card);
     });
     $("planRest").textContent = data.plan.rest || "";
   }
   function loadPlanDay(dayId) {
+    ensurePlan();
     if (!data.plan) return;
     var day = getPlanDay(dayId);
     if (!day) return;
@@ -1064,17 +1339,13 @@
     var existing = getTasks(tk);
     if (existing.length && !confirm("今日已有 " + existing.length + " 项任务，用「" + day.name + "」替换？")) return;
     data.tasks[tk] = day.items.map(function (it) {
-      var p = parsePlanItem(it);
-      return {
-        id: "t" + Date.now() + Math.floor(Math.random() * 1000),
-        text: it, done: false, src: dayId,
-        w: "", s: p.s != null ? String(p.s) : "", r: p.r != null ? String(p.r) : ""
-      };
+      var a = findExerciseByName(it.split(" ")[0]);
+      if (a) return taskFromExercise(a);
+      return buildTaskFromPlanItem(it);
     });
     save();
     showTab("today");
     renderTasks();
-    renderRecommend();
     toast("已载入：" + day.name);
   }
 
@@ -1117,6 +1388,7 @@
   var WEIGHTS = []; for (var wv = 0; wv <= 200; wv += 2.5) WEIGHTS.push(Math.round(wv * 10) / 10);
   var SETS = []; for (var sv = 1; sv <= 10; sv++) SETS.push(sv);
   var REPS = []; for (var rv = 1; rv <= 30; rv++) REPS.push(rv);
+  var TIMED_SECS = []; for (var tv = 10; tv <= 300; tv += 5) TIMED_SECS.push(tv);
 
   var wizTasks = [];
   var wizIndex = 0;
@@ -1124,21 +1396,96 @@
 
   function numOr(v, def) { var n = parseFloat(v); return isNaN(n) ? def : n; }
 
-  /* ---------- 卡路里估算 ---------- */
-  function getWeight() { return (typeof data.weight === "number" && data.weight > 0) ? data.weight : DEFAULT_WEIGHT; }
+  /* 判断任务是否需要额外负重（自适应交互：自重动作不显示重量滚轮） */
+  function isWeightedTask(t) {
+    if (!t) return true;
+    if (typeof t.weighted === "boolean") return t.weighted;
+    var ex = t.exid != null ? exById(t.exid) : findExerciseByName(String(t.text || "").split(" ")[0]);
+    return ex ? !!ex.weighted : true;
+  }
+  /* 判断任务是否为时间型（平板支撑等） */
+  function isTimedTask(t) {
+    if (!t) return false;
+    if (typeof t.timed === "boolean") return t.timed;
+    var ex = t.exid != null ? exById(t.exid) : findExerciseByName(String(t.text || "").split(" ")[0]);
+    return ex ? !!ex.timed : /秒|分钟/.test(String(t.r || ""));
+  }
 
-  /* 力量训练（今日任务，含重量/组数/次数）：做功法估算。
-     卡路里 ≈ 有效重量(kg) × 组数 × 次数 × K（K=0.035，含代谢补偿，使量级贴合真实消耗）。
-     无重量输入视为自重动作，有效重量取 体重×0.6。缺组数或次数则无法估算，返回 null。 */
+  /* ---------- 卡路里估算（精确做功模型） ---------- */
+  function getWeight() { return (typeof data.weight === "number" && data.weight > 0) ? data.weight : DEFAULT_WEIGHT; }
+  function getHeight() { return (typeof data.height === "number" && data.height > 0) ? data.height : DEFAULT_HEIGHT; }
+  function getAge() { return (typeof data.age === "number" && data.age > 0) ? data.age : DEFAULT_AGE; }
+  function getGender() { return data.gender === "female" ? "female" : "male"; }
+  function getUsername() { return (typeof data.username === "string" && data.username.trim()) ? data.username.trim() : ""; }
+  /* 带称呼的前缀：有用户名返回「名字，」，否则返回空串 */
+  function namePrefix() { var u = getUsername(); return u ? (u + "，") : ""; }
+
+  /* 基础代谢率 BMR（Mifflin-St Jeor 公式，kcal/天）：参与力量训练的能量补偿 */
+  function bmr() {
+    var w = getWeight(), h = getHeight(), a = getAge();
+    if (getGender() === "female") return 10 * w + 6.25 * h - 5 * a - 161;
+    return 10 * w + 6.25 * h - 5 * a + 5;
+  }
+
+  /* 力量训练（今日任务）：做功 + 代谢模型。
+     ① 机械做功 W = 器械重量 × 次数 × 组数 × 位移(约0.5m) × 重力 9.8，换算 kcal（1 kcal = 4184 J）；
+     ② 人体做功效率约 25%，且组间休息也有代谢消耗，故乘以能量补偿系数；
+     ③ 自重动作：有效负荷 ≈ 体重 × 动作系数（见 ex.selfLoad，缺省 0.6）；
+     ④ 叠加 BMR 分摊（按每组约 45 秒折算）。
+     timed 动作（平板支撑等）按「体重 × MET × 秒数」估算。 */
   function estTaskKcal(t) {
     if (!t) return null;
     var s = numOr(t.s, null);
+    if (s == null || s <= 0) return null;
+    var ex = t.exid != null ? exById(t.exid) : findExerciseByName(String(t.text || "").split(" ")[0]);
+
+    /* 时间型（平板支撑 / 开合跳秒数等）：用 MET 估算 */
+    if (t.timed || (ex && ex.timed)) {
+      var secs = parseDurationSec(t.r, ex ? ex.reps : null);
+      if (!secs) return null;
+      var met = ex ? ex.met : 4;
+      var kcalT = met * getWeight() * (secs / 3600);   // MET 以小时计
+      kcalT = kcalT * 1.0;
+      return Math.round(kcalT * s + bmr() / 1440 * (secs * s / 60));
+    }
+
     var r = numOr(t.r, null);
-    if (s == null || r == null) return null;
+    if (r == null || r <= 0) return null;
     var w = numOr(t.w, null);
-    var effW = (w == null || w === 0) ? getWeight() * 0.6 : w;
-    var kcal = effW * s * r * 0.035;
+    var isWeighted = (ex ? !!ex.weighted : true);
+    var effW;
+    if (!isWeighted) {
+      effW = getWeight() * (ex && ex.selfLoad ? ex.selfLoad : 0.6);
+    } else {
+      effW = (w == null || w === 0) ? getWeight() * 0.6 : w;
+    }
+    /* 机械功（J）→ kcal，除以人体做功效率 0.25，再乘代谢补偿 1.6 */
+    var displacement = ex && ex.disp ? ex.disp : 0.5;      // 每组平均位移（米）
+    var workJ = effW * 9.8 * displacement * r * s;         // 总机械功
+    var workKcal = workJ / 4184;                           // 转千卡
+    var kcal = workKcal / 0.25 * 1.6;
+    /* 叠加组间休息的 BMR 分摊（每组约 45 秒 + 60 秒休息 ≈ 105 秒） */
+    var restMin = (s * 105) / 60;
+    kcal += bmr() / 1440 * restMin;
     return Math.round(kcal);
+  }
+
+  /* 解析时长文本（"45-60秒" / "30秒" / "20分钟" / "12"）为秒数 */
+  function parseDurationSec(v, fallbackText) {
+    var txt = (v == null ? "" : String(v));
+    var mMin = txt.match(/(\d+)\s*分/);
+    if (mMin) return parseInt(mMin[1], 10) * 60;
+    var mSec = txt.match(/(\d+)\s*秒/);
+    if (mSec) return parseInt(mSec[1], 10);
+    var mNum = txt.match(/^(\d+)$/);
+    if (mNum) {
+      /* 纯数字：若该动作 reps 文本带「秒」则视为秒，否则视为次数（无法作时间型处理） */
+      if (fallbackText && String(fallbackText).indexOf("秒") !== -1) return parseInt(mNum[1], 10);
+      return null;
+    }
+    var mRange = txt.match(/(\d+)\s*-\s*(\d+)\s*秒/);
+    if (mRange) return parseInt(mRange[1], 10);
+    return null;
   }
 
   /* 有氧/球类/游泳（运动记录，含类型/时长）：MET × 体重(kg) × 时长(小时)。
@@ -1233,35 +1580,84 @@
     $("wizCount").textContent = (wizIndex + 1) + " / " + total;
     var t = wizTasks[wizIndex];
     $("wizActionName").textContent = t.text;
+    /* 动作图标 */
+    var icoBox = $("wizActionIco");
+    if (icoBox) {
+      var ic = t.icon || (t.part && PART_MAP[t.part] ? PART_MAP[t.part].icon : "ic-bodyweight");
+      icoBox.innerHTML = '<svg viewBox="0 0 24 24"><use href="#' + ic + '"></use></svg>';
+    }
+    /* 是否显示重量滚轮：需要负重的动作才显示（自适应交互） */
+    var needWeight = isWeightedTask(t);
+    var wheels = $("wizWheels");
+    var lblW = $("lblW");
+    if (wheels) wheels.classList.toggle("selfweight", !needWeight);
+    if (lblW) lblW.hidden = !needWeight;
+    var isTimed = isTimedTask(t);
+    if ($("lblR")) $("lblR").textContent = isTimed ? "时长(秒)" : "次数";
+
     var meta = [];
-    if (t.w) meta.push(t.w + "kg");
+    if (needWeight && t.w) meta.push(t.w + "kg");
+    else if (!needWeight) meta.push("自重");
     if (t.s) meta.push(t.s + "组");
-    if (t.r) meta.push("×" + t.r);
+    if (t.r) meta.push((isTimed ? "" : "×") + t.r);
     $("wizActionMeta").innerHTML = meta.length
       ? "预设 <b>" + meta.join(" · ") + "</b>，可滑动滚轮微调"
-      : "可滑动滚轮设置重量 / 组数 / 次数";
-    buildWheel("wheelItemsW", "wheelW", WEIGHTS, numOr(t.w, 0));
+      : (needWeight ? "可滑动滚轮设置重量 / 组数 / 次数" : "可滑动滚轮设置组数 / 次数");
+
+    if (needWeight) buildWheel("wheelItemsW", "wheelW", WEIGHTS, numOr(t.w, 0));
     buildWheel("wheelItemsS", "wheelS", SETS, numOr(t.s, 1));
-    buildWheel("wheelItemsR", "wheelR", REPS, numOr(t.r, 1));
+    var repVals = isTimed ? TIMED_SECS : REPS;
+    buildWheel("wheelItemsR", "wheelR", repVals, numOr(t.r, isTimed ? 45 : 1));
     var prevBtn = $("wizPrev");
     var nextBtn = $("wizNext");
     prevBtn.disabled = (wizIndex === 0);
     nextBtn.disabled = (wizIndex >= total - 1);
-    var wc = $("wizCal");
-    if (wc) wc.textContent = "今日累计 ≈ " + todayCalorie() + " 千卡（估算）";
+    updateWizCal();
+  }
+
+  /* 实时刷新向导底部卡路里：当前动作 ≈ kcal + 今日累计 ≈ kcal */
+  function updateWizCal() {
+    var curEl = $("wizCalCur");
+    var totEl = $("wizCalTotal");
+    var legacyEl = $("wizCal");
+    if (wizEmpty || !wizTasks.length) {
+      if (legacyEl) legacyEl.textContent = "今日累计 ≈ " + todayCalorie() + " 千卡（估算）";
+      if (curEl) curEl.textContent = "";
+      if (totEl) totEl.textContent = "";
+      return;
+    }
+    var t = wizTasks[wizIndex];
+    var k = estTaskKcal(t);
+    var curText = k == null
+      ? "当前动作：填写组数/次数后估算"
+      : "当前动作 ≈ " + k + " 千卡";
+    var totalText = "今日累计 ≈ " + todayCalorie() + " 千卡";
+    if (curEl && totEl) {
+      curEl.textContent = curText;
+      totEl.textContent = totalText;
+      if (legacyEl) legacyEl.classList.add("wiz-cal-split");
+    } else if (legacyEl) {
+      legacyEl.textContent = (k == null ? "" : curText + " · ") + totalText + "（估算）";
+    }
   }
 
   function buildWheel(itemsElId, wheelElId, values, initial) {
     var box = $(itemsElId);
+    if (!box) return;
     box.innerHTML = "";
     var initIdx = 0;
+    var isTimed = (wheelElId === "wheelR") && isTimedTask(wizTasks[wizIndex]);
     values.forEach(function (v, i) {
       var d = document.createElement("div");
       var isSel = (String(v) === String(initial));
       d.className = "wheel-item" + (isSel ? " sel" : "");
-      d.textContent = (wheelElId === "wheelW")
-        ? (Math.round(v * 10) / 10 % 1 === 0 ? v : (Math.round(v * 10) / 10).toFixed(1))
-        : v;
+      if (wheelElId === "wheelW") {
+        d.textContent = (Math.round(v * 10) / 10 % 1 === 0 ? v : (Math.round(v * 10) / 10).toFixed(1));
+      } else if (wheelElId === "wheelR" && isTimed) {
+        d.textContent = v + "s";
+      } else {
+        d.textContent = v;
+      }
       box.appendChild(d);
       if (isSel) initIdx = i;
     });
@@ -1284,6 +1680,10 @@
     else if (wheelElId === "wheelS") t.s = val;
     else if (wheelElId === "wheelR") t.r = val;
     save();
+    // 实时刷新卡路里（组数/重量/次数/时长变化即时反映）
+    updateWizCal();
+    var meta = $("wizActionMeta");
+    if (meta && meta.getAttribute("data-live") === "1") renderWizardStep();
   }
 
   /* 上一个：返回上一个动作（不退出、不标记完成） */
@@ -1314,9 +1714,12 @@
   function finishWizard() {
     var rec = ensureRecord(todayKey());
     rec.checkedIn = true;
-    rec.actions = wizTasks.map(function (t) {
-      return { text: t.text, w: t.w, s: t.s, r: t.r, done: t.done };
-    });
+    /* 仅在确有任务时写入动作明细，避免空向导覆盖已有记录 */
+    if (wizTasks && wizTasks.length) {
+      rec.actions = wizTasks.map(function (t) {
+        return { text: t.text, w: t.w, s: t.s, r: t.r, done: t.done };
+      });
+    }
     save();
     showWizardDone();
   }
@@ -1329,7 +1732,7 @@
     $("wizBack").style.visibility = "hidden";
     $("wizDoneSub").textContent = "已记录 " + (wizTasks.length || 0) + " 个动作，继续加油 💪";
     $("wizDoneView").hidden = false;
-    setTimeout(function () { closeWizard(); refreshAll(); toast("打卡成功 🔥"); }, 1300);
+    setTimeout(function () { closeWizard(); refreshAll(); toast(namePrefix() + "打卡成功 🔥"); }, 1300);
   }
 
   function closeWizard() {
@@ -1363,18 +1766,9 @@
     $("exportBtn").addEventListener("click", exportData);
     $("resetBtn").addEventListener("click", function () {
       if (confirm("确定清空所有打卡数据？此操作不可恢复。")) {
-        data = { records: {}, tasks: {}, plan: null, recDismiss: {}, wizResume: 0, weight: DEFAULT_WEIGHT }; ensurePlan(); save(); refreshAll(); toast("已清空");
+        data = blankData(); ensurePlan(true); save(); refreshAll(); renderSceneSwitch(); renderGenderToggle(); toast("已清空");
       }
     });
-    /* 体重设置：卡路里估算随体重实时联动 */
-    var wInput = $("inpWeight");
-    if (wInput) {
-      wInput.value = getWeight();
-      wInput.addEventListener("input", function () {
-        var v = parseFloat(wInput.value);
-        if (!isNaN(v) && v > 0) { data.weight = v; save(); renderCalSummary(); renderSportList(); updateCalEstimate(); }
-      });
-    }
     /* 动作库添加 */
     $("addExerciseBtn").addEventListener("click", openAddLib);
     $("addTodayExBtn").addEventListener("click", function () { openSheet(todayKey()); });
@@ -1395,7 +1789,12 @@
     $("libParts").addEventListener("click", function (e) {
       var t = e.target.closest ? e.target.closest(".lib-part") : null;
       if (!t) return;
-      libPartIdx = parseInt(t.getAttribute("data-idx"), 10);
+      var pid = t.getAttribute("data-pid");
+      if (!pid) return;
+      var scene = data.scene || "home";
+      var ids = PARTS.filter(function (p) { return exLibByPart(p.id, scene).length; }).map(function (p) { return p.id; });
+      libPartIdx = ids.indexOf(pid);
+      if (libPartIdx < 0) libPartIdx = 0;
       renderLibParts();
       renderLibList();
     });
@@ -1411,6 +1810,7 @@
       if (!btn) return;
       var id = btn.getAttribute("data-id");
       if (btn.classList.contains("tc-replace")) openReplace(id);
+      else if (btn.classList.contains("tc-del")) deleteTask(id);
     });
     /* 更换动作弹层 */
     $("replaceClose").addEventListener("click", closeReplace);
@@ -1429,20 +1829,105 @@
     $("taskList").addEventListener("input", function (e) {
       onTaskFieldInput(e);
     });
-    /* 今日训练推荐横幅 */
-    $("recoBanner").addEventListener("click", function (e) {
-      var btn = e.target.closest ? e.target.closest("button") : null;
-      if (!btn) return;
-      var act = btn.getAttribute("data-act");
-      if (act === "load") loadPlanDay(btn.getAttribute("data-day"));
-      else if (act === "dismiss") {
-        if (!data.recDismiss) data.recDismiss = {};
-        data.recDismiss[todayKey()] = true; save(); renderRecommend();
-      }
-    });
+    /* 「今日任务」标题右侧的小「载入」按钮：载入今日推荐训练 */
+    var taskLoadBtn = $("taskLoadBtn");
+    if (taskLoadBtn) taskLoadBtn.addEventListener("click", loadRecommend);
+    /* 场景切换（居家 / 健身房） */
+    var sceneBox = $("sceneSwitch");
+    if (sceneBox) {
+      sceneBox.addEventListener("click", function (e) {
+        var btn = e.target.closest ? e.target.closest(".scene-btn") : null;
+        if (!btn) return;
+        var sc = btn.getAttribute("data-scene");
+        if (!sc || sc === data.scene) return;
+        data.scene = sc;
+        ensurePlan(true);           // 场景变化 → 重生成计划
+        save();
+        renderSceneSwitch();
+        if ($("panel-plan").classList.contains("active")) renderPlan();
+        toast("已切换到「" + SCENES[sc].name + "」");
+      });
+    }
+    /* 身体数据（用户名/体重/身高/年龄/性别） */
+    var nInput = $("inpName");
+    if (nInput) {
+      nInput.value = data.username || "";
+      nInput.addEventListener("input", function () {
+        data.username = nInput.value.trim();
+        save();
+        renderToday();   // 首页问候实时带上用户名
+      });
+    }
+    var wInput = $("inpWeight");
+    if (wInput) {
+      wInput.value = getWeight();
+      wInput.addEventListener("input", function () {
+        var v = parseFloat(wInput.value);
+        if (!isNaN(v) && v > 0) { data.weight = v; save(); refreshCalorieViews(); }
+      });
+    }
+    var hInput = $("inpHeight");
+    if (hInput) {
+      hInput.value = getHeight();
+      hInput.addEventListener("input", function () {
+        var v = parseFloat(hInput.value);
+        if (!isNaN(v) && v > 0) { data.height = v; save(); refreshCalorieViews(); }
+      });
+    }
+    var aInput = $("inpAge");
+    if (aInput) {
+      aInput.value = data.age || 25;
+      aInput.addEventListener("input", function () {
+        var v = parseInt(aInput.value, 10);
+        if (!isNaN(v) && v > 0) { data.age = v; save(); refreshCalorieViews(); }
+      });
+    }
+    var gBox = $("genderToggle");
+    if (gBox) {
+      gBox.addEventListener("click", function (e) {
+        var btn = e.target.closest ? e.target.closest("button") : null;
+        if (!btn) return;
+        data.gender = btn.getAttribute("data-gender") === "female" ? "female" : "male";
+        save();
+        renderGenderToggle();
+        refreshCalorieViews();
+      });
+    }
     $("planList").addEventListener("click", function (e) {
       var btn = e.target.closest ? e.target.closest("button") : null;
       if (btn && btn.classList.contains("plan-load")) loadPlanDay(btn.getAttribute("data-day"));
+    });
+    /* 默认信息弹窗 */
+    $("profileSave").addEventListener("click", saveProfile);
+    $("profileSkip").addEventListener("click", skipProfile);
+    $("editProfileBtn").addEventListener("click", openProfile);
+    /* 主题与壁纸 */
+    $("themeBtn").addEventListener("click", openTheme);
+    $("themeSave").addEventListener("click", closeTheme);
+    $("themeOverlay").addEventListener("click", function (e) { if (e.target === $("themeOverlay")) closeTheme(); });
+    $("wallpaperInput").addEventListener("change", function (e) {
+      var f = e.target.files && e.target.files[0];
+      if (!f) return;
+      if (!/^image\//.test(f.type)) { toast("请选择图片文件"); return; }
+      var reader = new FileReader();
+      reader.onload = function () {
+        /* 大图压缩，避免 localStorage 超限 */
+        compressImage(reader.result, 1280, 0.82, function (out) {
+          setWallpaper(out);
+          toast("壁纸已更新");
+        });
+      };
+      reader.readAsDataURL(f);
+      e.target.value = "";   // 允许重复选同一文件
+    });
+    $("wallpaperClear").addEventListener("click", function () { setWallpaper(""); toast("已恢复内置壁纸"); });
+    $("profileGender").addEventListener("click", function (e) {
+      var btn = e.target.closest ? e.target.closest("button") : null;
+      if (!btn) return;
+      profileGenderSel = btn.getAttribute("data-gender") === "female" ? "female" : "male";
+      $("profileGender").querySelectorAll("button").forEach(function (b) {
+        b.classList.toggle("sel", b.getAttribute("data-gender") === profileGenderSel);
+      });
     });
     window.addEventListener("resize", function () {
       if ($("panel-stats").classList.contains("active")) renderStats();
@@ -1465,34 +1950,239 @@
   }
   function enterApp() {
     load();
-    ensurePlan();
+    ensurePlan(false);
     autoScheduleToday();
     syncCheckin();   // 自愈：若本地残留“已打卡”但仍有未完成动作（旧版数据），打开即校正
+    renderSceneSwitch();
+    renderGenderToggle();
+    applyTheme();     // 应用主题与壁纸
     renderToday();
     renderCalendar();
     try { $("appVersion").textContent = "v" + APP_VERSION; } catch (e) {}
+    // 首次进入：弹出「默认信息」引导
+    if (!data.profileDone) {
+      setTimeout(function () { openProfile(); }, 260);
+    }
+  }
+
+  /* 场景切换控件状态 */
+  function renderSceneSwitch() {
+    var box = $("sceneSwitch");
+    if (!box) return;
+    var scene = data.scene || "home";
+    box.querySelectorAll(".scene-btn").forEach(function (b) {
+      b.classList.toggle("sel", b.getAttribute("data-scene") === scene);
+    });
+  }
+  /* 性别选择控件状态 */
+  function renderGenderToggle() {
+    var box = $("genderToggle");
+    if (box) {
+      var g = data.gender || "male";
+      box.querySelectorAll("button").forEach(function (b) {
+        b.classList.toggle("sel", b.getAttribute("data-gender") === g);
+      });
+    }
+    var pbox = $("profileGender");
+    if (pbox) {
+      var pg = data.gender || "male";
+      pbox.querySelectorAll("button").forEach(function (b) {
+        b.classList.toggle("sel", b.getAttribute("data-gender") === pg);
+      });
+    }
+  }
+
+  /* ---------- 默认信息引导（首启填写性别/体重/身高/年龄） ---------- */
+  var profileGenderSel = "male";
+  function openProfile() {
+    profileGenderSel = data.gender || "male";
+    var n = $("profileName");
+    if (n) n.value = data.username || "";
+    var w = $("profileWeight"), h = $("profileHeight"), a = $("profileAge");
+    if (w) w.value = (typeof data.weight === "number" && data.weight > 0) ? data.weight : "";
+    if (h) h.value = (typeof data.height === "number" && data.height > 0) ? data.height : "";
+    if (a) a.value = (typeof data.age === "number" && data.age > 0) ? data.age : "";
+    var pbox = $("profileGender");
+    if (pbox) {
+      pbox.querySelectorAll("button").forEach(function (b) {
+        b.classList.toggle("sel", b.getAttribute("data-gender") === profileGenderSel);
+      });
+    }
+    $("profileOverlay").hidden = false;
+  }
+  function closeProfile() { $("profileOverlay").hidden = true; }
+  function saveProfile() {
+    var n = $("profileName") ? $("profileName").value.trim() : "";
+    var w = parseFloat($("profileWeight").value);
+    var h = parseFloat($("profileHeight").value);
+    var a = parseInt($("profileAge").value, 10);
+    data.username = n;
+    if (!isNaN(w) && w > 0) data.weight = w;
+    if (!isNaN(h) && h > 0) data.height = h;
+    if (!isNaN(a) && a > 0) data.age = a;
+    data.gender = profileGenderSel === "female" ? "female" : "male";
+    data.profileDone = true;
+    save();
+    // 同步设置页输入框
+    if ($("inpName")) $("inpName").value = data.username;
+    if ($("inpWeight")) $("inpWeight").value = getWeight();
+    if ($("inpHeight")) $("inpHeight").value = getHeight();
+    if ($("inpAge")) $("inpAge").value = getAge();
+    renderGenderToggle();
+    refreshCalorieViews();
+    renderToday();      // 刷新首页问候（带上用户名）
+    closeProfile();
+    toast(data.username ? (data.username + "，信息已保存") : "信息已保存");
+  }
+  function skipProfile() {
+    data.profileDone = true;   // 标记已处理，避免每次打开都弹
+    save();
+    closeProfile();
+  }
+
+  /* ---------- 主题与壁纸 ---------- */
+  var DEFAULT_WALLPAPER = "assets/wallpaper-snow.jpg";
+  var DEFAULT_THEME = "snow";   // 默认主题「雪光柔白」
+  var THEMES = [
+    { key: "plain", name: "清爽蓝白", chip: "默认", sw: "linear-gradient(135deg,#2563EB,#EFF4FF)" },
+    { key: "night", name: "宁静夜",   chip: "深蓝玻璃", sw: "linear-gradient(135deg,#16203a,#7AA2F7)" },
+    { key: "snow",  name: "雪光柔白", chip: "明亮", sw: "linear-gradient(135deg,#EAF1FF,#3B6FD4)" },
+    { key: "neon",  name: "暗夜霓虹", chip: "青蓝发光", sw: "linear-gradient(135deg,#0a1020,#22D3EE)" },
+    { key: "warm",  name: "暖冬",     chip: "暖蓝紫", sw: "linear-gradient(135deg,#241a3e,#8B7CF6)" }
+  ];
+  function themeOf(key) { for (var i = 0; i < THEMES.length; i++) if (THEMES[i].key === key) return THEMES[i]; return null; }
+  /* 把主题与壁纸应用到 <html> */
+  function applyTheme() {
+    var root = document.documentElement;
+    var key = data.theme || DEFAULT_THEME;
+    if (key && key !== "plain") root.setAttribute("data-theme", key);
+    else root.removeAttribute("data-theme");
+    // 自定义壁纸优先，否则内置
+    var wp = data.wallpaper || DEFAULT_WALLPAPER;
+    var url = 'url("' + wp + '")';
+    root.style.setProperty("--wp-image", url);
+  }
+  function setTheme(key) {
+    data.theme = (key === "plain") ? "plain" : key;
+    save();
+    applyTheme();
+    renderThemeGrid();
+  }
+  function renderThemeGrid() {
+    var grid = $("themeGrid");
+    if (!grid) return;
+    grid.innerHTML = "";
+    var cur = data.theme || DEFAULT_THEME;
+    THEMES.forEach(function (t) {
+      var item = document.createElement("div");
+      item.className = "theme-item" + (t.key === cur ? " sel" : "");
+      // 用内置壁纸做缩略图（自定义壁纸时也可显示）
+      var wpUrl = data.wallpaper || DEFAULT_WALLPAPER;
+      var bg = (t.key === "plain") ? t.sw : ('linear-gradient(180deg, rgba(0,0,0,0.25), rgba(0,0,0,0.5)), url("' + wpUrl + '")');
+      item.innerHTML =
+        '<div class="theme-swatch" style="background-image:' + bg + '">' +
+        '<span class="sw-chip">' + t.chip + '</span></div>' +
+        '<div class="theme-label">' + t.name + '</div>';
+      item.addEventListener("click", function () { setTheme(t.key); });
+      grid.appendChild(item);
+    });
+  }
+  function openTheme() { renderThemeGrid(); updateWallpaperUI(); $("themeOverlay").hidden = false; }
+  function closeTheme() { $("themeOverlay").hidden = true; }
+  function updateWallpaperUI() {
+    var clearBtn = $("wallpaperClear");
+    var nameEl = $("wallpaperName");
+    if (data.wallpaper) {
+      if (clearBtn) clearBtn.hidden = false;
+      if (nameEl) nameEl.textContent = "已使用自定义壁纸";
+    } else {
+      if (clearBtn) clearBtn.hidden = true;
+      if (nameEl) nameEl.textContent = "当前为内置壁纸（雪夜）";
+    }
+  }
+  function setWallpaper(dataUrl) {
+    data.wallpaper = dataUrl || "";
+    try { save(); } catch (e) { toast("壁纸过大，未能保存"); }
+    applyTheme();
+    renderThemeGrid();
+    updateWallpaperUI();
+  }
+  /* 压缩图片：限制最长边 maxSize，输出 JPEG dataURL（图片无法解码时回退原图） */
+  function compressImage(dataUrl, maxSize, quality, cb) {
+    var done = false;
+    function finish(out) { if (done) return; done = true; cb(out); }
+    try {
+      var img = new Image();
+      img.onload = function () {
+        try {
+          var w = img.width, h = img.height;
+          var scale = Math.min(1, maxSize / Math.max(w, h));
+          var cw = Math.round(w * scale), ch = Math.round(h * scale);
+          var cv = document.createElement("canvas");
+          cv.width = cw; cv.height = ch;
+          var ctx = cv.getContext("2d");
+          ctx.drawImage(img, 0, 0, cw, ch);
+          finish(cv.toDataURL("image/jpeg", quality));
+        } catch (e) { finish(dataUrl); }
+      };
+      img.onerror = function () { finish(dataUrl); };
+      img.src = dataUrl;
+      /* 兜底：若 3 秒内回调未触发（异常环境），直接使用原图 */
+      setTimeout(function () { finish(dataUrl); }, 3000);
+    } catch (e) { finish(dataUrl); }
+  }
+  /* 身体数据变化后，刷新所有与卡路里相关的视图 */
+  function refreshCalorieViews() {
+    renderCalSummary();
+    renderTasks();
+    renderSportList();
+    updateCalEstimate();
+    if ($("wizard") && !$("wizard").hidden) {
+      updateWizCal();
+    }
+    if ($("panel-stats").classList.contains("active")) renderStats();
   }
 
   /* 根据周计划 + 星期几，自动安排今日任务（仅当今日尚无任务时执行，避免覆盖手动改动） */
   function buildTaskFromPlanItem(it) {
     var p = parsePlanItem(it);
+    var a = findExerciseByName(it.split(" ")[0]);
     return {
       id: "t" + Date.now() + Math.floor(Math.random() * 1000),
-      text: it, done: false, src: "plan",
-      w: "", s: p.s != null ? String(p.s) : "", r: p.r != null ? String(p.r) : ""
+      text: a ? a.name : it, done: false, src: "plan",
+      w: "", s: p.s != null ? String(p.s) : (a ? String(a.sets) : ""), r: p.r != null ? p.r : (a ? String(a.reps) : ""),
+      exid: a ? a.id : null, weighted: a ? !!a.weighted : true, timed: a ? !!a.timed : false,
+      icon: a ? a.icon : null, part: a ? a.part : null, equip: a ? a.equip : null
     };
   }
+  /* 星期 → 训练日映射（推拉腿分化：周一A 周二B 周四C 周五D；周三·周日休息） */
+  var WEEK_PLAN = { 1: "A", 2: "B", 4: "C", 5: "D" };
+  /* 该星期对应的训练日 id，休息日返回 null */
+  function planDayIdFor(day) { return WEEK_PLAN[day] || null; }
+
+  /* 场景化自动排期：训练日按「每周计划」对应训练日的动作自动安排（与计划页保持一致） */
   function autoScheduleToday() {
     var tk = todayKey();
     var tasks = getTasks(tk);
     if (tasks.length) return;                       // 今日已有任务（手动或已排），不覆盖
-    if (data.recDismiss && data.recDismiss[tk]) return; // 用户曾忽略推荐
     var now = new Date();
-    var sc = SCHEDULE[now.getDay()];
-    if (!sc || sc.type !== "train") return;          // 休息日不自动排训练
-    var day = getPlanDay(sc.day);
-    if (!day) return;
-    data.tasks[tk] = day.items.map(buildTaskFromPlanItem);
+    var dayId = planDayIdFor(now.getDay());
+    if (!dayId) return;                             // 周三/周日 为休息日，不自动排
+    ensurePlan();                                   // 确保有计划
+    var day = getPlanDay(dayId);
+    if (!day || !day.items.length) {
+      /* 兜底：计划缺失时退回推荐组合 */
+      var picks = pickDailyWorkout(data.scene || "home", 5);
+      if (!picks.length) return;
+      data.tasks[tk] = picks.map(function (a) { return taskFromExercise(a); });
+      save();
+      return;
+    }
+    data.tasks[tk] = day.items.map(function (it) {
+      var a = findExerciseByName(it.split(" ")[0]);
+      if (a) return taskFromExercise(a);
+      return buildTaskFromPlanItem(it);
+    });
     save();
   }
 

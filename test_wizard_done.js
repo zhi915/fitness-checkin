@@ -41,7 +41,7 @@ const wizDoneView = document.getElementById("wizDoneView");
 const wizBody = document.getElementById("wizBody");
 const wizWizard = document.getElementById("wizard");
 
-ok("版本号 v2.9.1", (document.getElementById("appVersion").textContent || "").indexOf("2.9.1") !== -1);
+ok("版本号 v3.0.9", (document.getElementById("appVersion").textContent || "").indexOf("3.0.9") !== -1);
 
 /* 1. 自动排程产生任务（周一训练日） */
 const before = document.getElementById("taskList").children.length;
@@ -63,14 +63,15 @@ setTimeout(function () {
   ok("全部完成后已打卡", (checkinText.textContent || "").indexOf("已打卡") !== -1);
 
   /* 4. 完成打卡后再添加动作（首页自定义添加） */
-  const listBefore = document.getElementById("taskList").children.length;
+  const totalBefore = parseInt((document.getElementById("taskProgress").textContent || "0/0").split("/")[1], 10);
   document.getElementById("libCustom").value = "额外加练 哑铃弯举 3组 × 12";
   document.getElementById("libCustomBtn").click(); // addTask
 
   /* 5. 添加后：必须取消“已打卡”，首页回到“今日打卡” */
   ok("添加动作后取消已打卡态", (checkinText.textContent || "").indexOf("已打卡") === -1);
   ok("添加动作后首页显示今日打卡", (checkinText.textContent || "").indexOf("今日打卡") !== -1);
-  ok("任务数 +1", document.getElementById("taskList").children.length === listBefore + 1);
+  const totalAfter = parseInt((document.getElementById("taskProgress").textContent || "0/0").split("/")[1], 10);
+  ok("任务数 +1", totalAfter === totalBefore + 1);
 
   /* 6. 再次进入“每日打卡”向导：成功页必须被隐藏，显示动作列表 */
   document.getElementById("checkinBtn").click();

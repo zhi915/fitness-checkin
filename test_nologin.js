@@ -20,9 +20,9 @@ const dom = new JSDOM(html, {
 const { window } = dom;
 const doc = window.document;
 
-let fail = 0;
+let pass = 0, fail = 0;
 function assert(c, m) {
-  if (c) console.log("✓ " + m);
+  if (c) { console.log("✓ " + m); pass++; }
   else { console.log("✗ " + m); fail++; }
 }
 
@@ -42,16 +42,17 @@ setTimeout(function () {
   assert(!!app, "主界面 #app 存在");
   assert(!/display\s*:\s*none/.test(app.getAttribute("style") || ""), "#app 没有 display:none（默认可见）");
   const ver = doc.getElementById("appVersion");
-  assert(ver && /2\.2\.0/.test(ver.textContent), "顶栏版本号显示 v2.2.0（实际：" + (ver && ver.textContent) + "）");
-  const reco = doc.getElementById("recoBanner");
-  assert(reco && !reco.hidden && reco.innerHTML.length > 0, "今日推荐横幅已渲染");
-  // 模拟点击“今日打卡”能否打开记录弹层
-  const sheet = doc.getElementById("sheetOverlay");
+  assert(ver && /3\.0\.9/.test(ver.textContent), "顶栏版本号显示 v3.0.9（实际：" + (ver && ver.textContent) + "）");
+  const loadBtn = doc.getElementById("taskLoadBtn");
+  assert(!!loadBtn, "「今日任务」标题右侧有「载入」按钮");
+  assert(!doc.getElementById("recoBanner"), "旧推荐横幅已移除");
+  // 模拟点击“今日打卡”能否打开打卡向导
+  const wiz = doc.getElementById("wizard");
   doc.getElementById("checkinBtn").dispatchEvent(new window.Event("click"));
-  assert(sheet && !sheet.hidden, "点击打卡按钮可打开记录弹层");
+  assert(wiz && !wiz.hidden, "点击打卡按钮可打开打卡向导");
   // 退出/切换按钮应不存在
   assert(!doc.getElementById("logoutBtn"), "不存在“退出”按钮（无登录）");
 
-  console.log("\n结果：" + (fail === 0 ? "全部通过 ✅" : fail + " 项失败 ❌"));
+  console.log("\n结果: " + pass + " 通过, " + fail + " 失败");
   process.exit(fail === 0 ? 0 : 1);
 }, 200);

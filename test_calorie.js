@@ -35,13 +35,15 @@ try {
   try { document.dispatchEvent(new window.Event("DOMContentLoaded")); } catch (e) {}
 } catch (e) { console.log("EVAL ERROR:", e.message); }
 
-ok("版本号 v2.9.1", (document.getElementById("appVersion").textContent || "").indexOf("2.9.1") !== -1);
+ok("版本号 v3.0.9", (document.getElementById("appVersion").textContent || "").indexOf("3.0.9") !== -1);
 
 // 1. 首页汇总卡有数值（今日任务做功法估算之和 > 0）
 const calSum = document.getElementById("calSumNum");
 const beforeTotal = parseInt(calSum.textContent, 10);
 ok("首页「今日预计消耗」有数值", !isNaN(beforeTotal) && beforeTotal > 0);
-ok("汇总卡含类型色条容器", !!document.getElementById("calTypeBar"));
+ok("汇总卡含环形图容器", !!document.getElementById("calRing"));
+ok("环形图渲染出弧段(>0)", document.getElementById("calRing").innerHTML.indexOf("<circle") !== -1);
+ok("环形图中心显示总消耗", /^\d+$/.test(document.getElementById("calSumNum").textContent.trim()));
 
 // 2. 今日任务列表显示 ≈kcal 徽标
 const taskList = document.getElementById("taskList");

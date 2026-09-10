@@ -36,7 +36,7 @@ try {
 
 // 1. 自动进主界面 + 版本号
 ok("主界面可见(无登录)", !document.getElementById("app").hidden || document.getElementById("app").style.display !== "none");
-ok("版本号 v2.9.1", (document.getElementById("appVersion").textContent || "").indexOf("2.9.1") !== -1);
+ok("版本号 v3.0.9", (document.getElementById("appVersion").textContent || "").indexOf("3.0.9") !== -1);
 
 const taskList = document.getElementById("taskList");
 const before = taskList.children.length;
@@ -44,8 +44,8 @@ const before = taskList.children.length;
 // 2. 打开动作库弹层
 document.getElementById("addExerciseBtn").click();
 ok("点击后动作库弹层显示", document.getElementById("addLibOverlay").hidden === false);
-ok("部位 tab 渲染 7 个", document.getElementById("libParts").children.length === 7);
-ok("默认显示部位[胸]动作 5 个", document.getElementById("libList").children.length === 5);
+ok("部位 tab 渲染 8 个", document.getElementById("libParts").children.length === 8);
+ok("默认显示部位[胸]动作 ≥5 个", document.getElementById("libList").children.length >= 5);
 
 // 3. 点击第一个动作 -> 今日任务 +1
 document.getElementById("libList").children[0].click();
@@ -54,7 +54,7 @@ ok("弹层仍可继续添加(未关闭)", document.getElementById("addLibOverlay
 
 // 4. 切换部位到 [背](idx=1) -> 列表更新为背部动作
 document.getElementById("libParts").children[1].click();
-ok("切换部位后列表更新为背部 5 个", document.getElementById("libList").children.length === 5);
+ok("切换部位后列表更新为背部 ≥5 个", document.getElementById("libList").children.length >= 5);
 const backText = document.getElementById("libList").children[0].textContent;
 ok("背部首个动作含划船", backText.indexOf("划船") !== -1);
 

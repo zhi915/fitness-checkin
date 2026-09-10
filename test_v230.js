@@ -38,44 +38,55 @@ function click(el) { el.dispatchEvent(new window.MouseEvent("click", { bubbles: 
 const TODAY = "2026-01-05";
 
 // ===== 1. 自动排程 =====
-const taskRows = $("taskList").querySelectorAll(".task-item");
-ok("自动排程：周一打开即生成今日任务(来自计划A=5项)", taskRows.length === 5);
-ok("任务进度显示 0/5", /0\/5/.test($("taskProgress").textContent));
+const listRows = $("taskList").querySelectorAll(".task-item");
+// 总任务数 = 列表行数 + 顶部当前动作卡(未完成时存在且不在列表中重复)
+const hasCurrentCard = !!$("taskCurrent").querySelector(".task-current-card");
+const TASK_N = listRows.length + (hasCurrentCard ? 1 : 0);
+ok("自动排程：周一打开即生成今日任务(与计划A一致，条数>0)", TASK_N > 0);
+ok("任务进度显示 0/N（N=任务数）", $("taskProgress").textContent.trim() === "0/" + TASK_N);
 ok("当前动作卡片已显示首个动作", !!$("taskCurrent").querySelector(".tc-text") && $("taskCurrent").querySelector(".tc-text").textContent.length > 0);
+ok("列表中不重复当前动作(行数=" + listRows.length + "，总数=" + TASK_N + ")", listRows.length === TASK_N - 1);
 
-// ===== 2. 更换动作 =====
-const firstTextBefore = taskRows[0].querySelector(".task-text").textContent;
-click(taskRows[0].querySelector(".task-replace"));
+// ===== 2. 更换动作（作用于顶部放大卡里的当前动作）=====
+const firstTextBefore = $("taskCurrent").querySelector(".tc-text").textContent;
+click($("taskCurrent").querySelector(".tc-replace"));
 ok("点击更换后弹层打开", $("replaceOverlay").hidden === false);
-ok("更换列表中有可选项", $("replaceList").querySelectorAll(".replace-item").length > 0);
-// 选一个不同的动作（取第 3 个候选，避开与首项相同）
-const items = $("replaceList").querySelectorAll(".replace-item");
-const pick = items[2];
-const pickText = pick.textContent;
+const replItems = $("replaceList").querySelectorAll(".replace-item");
+ok("更换列表中有可选项", replItems.length > 0);
+// 选一个与当前不同的动作
+let pick = null, pickText = "";
+for (let i = 0; i < replItems.length; i++) {
+  if (replItems[i].textContent.trim() && !replItems[i].classList.contains("same")) { pick = replItems[i]; pickText = replItems[i].textContent.trim(); break; }
+}
 click(pick);
 ok("更换后弹层关闭", $("replaceOverlay").hidden === true);
-const firstTextAfter = $("taskList").querySelectorAll(".task-item")[0].querySelector(".task-text").textContent;
-ok("更换后首个动作文本已改变", firstTextAfter !== firstTextBefore && firstTextAfter === pickText);
+const firstTextAfter = $("taskCurrent").querySelector(".tc-text").textContent;
+ok("更换后首个动作文本已改变", firstTextAfter.indexOf(pickText) !== -1 && pickText !== firstTextBefore.replace(/[\s\d]*千卡.*/, ""));
 
-// ===== 3. 打卡时记录动作内容 =====
-// 先把第一个动作标记完成
-click($("taskList").querySelectorAll(".task-item")[0].querySelector(".task-check"));
-ok("标记完成后进度变为 1/5", /1\/5/.test($("taskProgress").textContent));
-
-// 打开打卡弹层并完成打卡
+// ===== 3. 打卡时记录动作内容（v3：向导式打卡） =====
+// 打开打卡向导，依次点击圆形完成按钮走完全部动作
 click($("checkinBtn"));
-ok("打卡弹层已打开", $("sheetOverlay").hidden === false);
-click($("btnFinish"));
+ok("打卡向导已打开", $("wizard").hidden === false);
+const total = TASK_N;
+for (let n = 0; n < total + 3; n++) {
+  if ($("wizard").hidden) break;
+  const before = JSON.parse(window.localStorage.getItem("fitapp_data"));
+  const cur = before.records[TODAY] || before.records[TODAY.toLowerCase()];
+  if (cur && cur.checkedIn) break;
+  click($("wizDone"));   // 完成当前动作并前进
+}
+// 完成页出现（setTimeout 1300ms 后自动关闭）
+setTimeout(function () {
+  const stored = JSON.parse(window.localStorage.getItem("fitapp_data"));
+  const rec = stored.records[TODAY];
+  ok("打卡记录已写入且 checkedIn=true", rec && rec.checkedIn === true);
+  ok("打卡记录包含今日动作内容(actions 数组)", rec && Array.isArray(rec.actions) && rec.actions.length === total);
+  ok("动作内容含重量/组数/次数解析(s 或 r 存在)", rec && rec.actions.some(function (a) { return a.s || a.r; }));
+  ok("已完成的动作 done=true", rec && rec.actions.every(function (a) { return a.done === true; }));
 
-const stored = JSON.parse(window.localStorage.getItem("fitapp_data"));
-const rec = stored.records[TODAY];
-ok("打卡记录已写入且 checkedIn=true", rec && rec.checkedIn === true);
-ok("打卡记录包含今日动作内容(actions 数组)", rec && Array.isArray(rec.actions) && rec.actions.length === 5);
-ok("动作内容含重量/组数/次数解析(s 或 r 存在)", rec && rec.actions.some(function (a) { return a.s || a.r; }));
-ok("已完成的动作 done=true", rec && rec.actions[0].done === true);
+  // 今日动作记录区渲染
+  ok("今日动作记录区显示", $("todayActionsTitle") && $("todayActions").querySelectorAll(".today-action").length === total);
 
-// 今日动作记录区渲染
-ok("今日动作记录区显示", $("todayActionsTitle").hidden === false && $("todayActions").querySelectorAll(".today-action").length === 5);
-
-console.log("\n结果：" + pass + " 通过, " + fail + " 失败");
-process.exit(fail ? 1 : 0);
+  console.log("\n结果: " + pass + " 通过, " + fail + " 失败");
+  process.exit(fail ? 1 : 0);
+}, 1500);

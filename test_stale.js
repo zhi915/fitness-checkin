@@ -47,7 +47,7 @@ try {
 const checkinText = document.getElementById("checkinText");
 const taskList = document.getElementById("taskList");
 
-ok("A0 残留数据已载入(任务数=2)", taskList.children.length === 2);
+ok("A0 残留数据已载入(任务数=2)", (document.getElementById("taskCurrent").querySelector(".task-current-card") ? 1 : 0) + taskList.children.length === 2);
 ok("A1 打开即自愈：首页不显示“已打卡”", checkinText.textContent.indexOf("已打卡") === -1);
 ok("A2 首页显示“今日打卡”(未完成态)", checkinText.textContent.indexOf("今日打卡") !== -1);
 
@@ -56,7 +56,7 @@ document.getElementById("checkinBtn").click();
 ok("B0 向导打开且显示动作步骤(wizBody可见)", document.getElementById("wizard").hidden === false && document.getElementById("wizBody").hidden === false);
 ok("B1 完成页 wizDoneView 已隐藏", document.getElementById("wizDoneView").hidden === true);
 ok("B2 停在第一个未完成动作(1 / 2)", document.getElementById("wizCount").textContent.trim() === "1 / 2");
-ok("B3 动作显示“未完成”", taskList.children[0].querySelector(".task-status").textContent.indexOf("未完成") !== -1);
+ok("B3 动作显示“未完成”", document.getElementById("taskCurrent").querySelector(".task-status").textContent.indexOf("未完成") !== -1);
 
 // 完成全部 -> 才显示成功
 document.getElementById("wizDone").click();

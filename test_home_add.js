@@ -32,7 +32,7 @@ try {
   try { document.dispatchEvent(new window.Event("DOMContentLoaded")); } catch (e) {}
 } catch (e) { console.log("EVAL ERROR:", e.message); }
 
-ok("版本号 v2.9.1", (document.getElementById("appVersion").textContent || "").indexOf("2.9.1") !== -1);
+ok("版本号 v3.0.9", (document.getElementById("appVersion").textContent || "").indexOf("3.0.9") !== -1);
 
 // 1. 首页「今日运动」添加按钮存在
 const addBtn = document.getElementById("addTodayExBtn");

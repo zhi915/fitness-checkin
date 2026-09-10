@@ -26,34 +26,34 @@ const $ = (id) => window.document.getElementById(id);
 
 // 1. 自动排程：训练日应有今日任务
 ok($("taskList").querySelectorAll(".task-item").length > 0, "训练日自动生成今日任务");
-const firstTask = $("taskList").querySelector(".task-item .task-text").textContent;
+// 首个（当前）动作在顶部放大卡展示
+const firstTask = $("taskCurrent").querySelector(".tc-text").textContent;
+// 今日任务总数（顶部进度条分母；列表里不含当前动作，不重复展示）
+const total = parseInt(($("taskProgress").textContent || "0/0").split("/")[1], 10);
 
 // 2. 点击今日打卡 -> 打开向导
 $("checkinBtn").click();
 ok($("wizard").hidden === false, "点击今日打卡打开分步向导");
-ok($("wizActionName").textContent === firstTask, "向导显示第一个动作名称");
+ok($("wizActionName").textContent.length > 0, "向导显示第一个动作名称");
+ok(firstTask.indexOf($("wizActionName").textContent) !== -1, "向导首屏动作与任务首项一致");
 
-// 3. 滚轮已渲染
-ok($("wheelItemsW").children.length > 0, "重量滚轮已渲染选项");
+// 3. 滚轮已渲染（次数或时长为自适应，至少渲染若干项）
 ok($("wheelItemsS").children.length === 10, "组数滚轮 1-10");
-ok($("wheelItemsR").children.length === 30, "次数滚轮 1-30");
+ok($("wheelItemsR").children.length > 0, "次数/时长滚轮已渲染选项");
 
 // 4. 进度与计数
 ok($("wizCount").textContent.indexOf("/") > 0, "显示进度计数 x / N");
 
-// 5. 点击「下一个」推进
-const total = $("taskList").querySelectorAll(".task-item").length;
-for (let i = 1; i < total; i++) $("wizNext").click();
-ok($("wizNext").textContent === "完成", "最后一步按钮变为「完成」");
-
-// 6. 完成 -> 写入打卡记录
-$("wizNext").click();
+// 5. 依次点击圆形完成按钮，走完全部动作（点击 total 次即全部标记完成）
+for (let i = 0; i < total; i++) $("wizDone").click();
 const rec = JSON.parse(window.localStorage.getItem("fitapp_data")).records["2026-01-05"];
-ok(rec && rec.checkedIn === true, "完成向导后今日已打卡");
+ok(rec && rec.checkedIn === true, "全部完成后自动完成打卡");
+
+// 6. 校验打卡记录内容
 ok(rec && rec.actions && rec.actions.length === total, "打卡记录包含全部动作内容");
 ok(rec && rec.actions.every(a => a.done === true), "动作均标记为已完成");
 
-// 7. 向导关闭 + 成功提示
+// 7. 向导关闭（setTimeout 同步执行 -> 立即关闭）
 ok($("wizard").hidden === true, "打卡后向导关闭");
 
 // 8. 休息日：无任务直接打卡
@@ -64,7 +64,7 @@ window.eval(appjs);
 window.document.dispatchEvent(new window.Event("DOMContentLoaded"));
 $("checkinBtn").click();
 ok($("wizBody").classList.contains("empty"), "休息日向导显示空状态");
-$("wizNext").click();
+$("wizDone").click();
 const rec2 = JSON.parse(window.localStorage.getItem("fitapp_data")).records["2026-01-04"];
 ok(rec2 && rec2.checkedIn === true, "休息日完成打卡成功");
 

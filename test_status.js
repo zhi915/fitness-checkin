@@ -30,7 +30,7 @@ try {
   try { document.dispatchEvent(new window.Event("DOMContentLoaded")); } catch (e) {}
 } catch (e) { console.log("EVAL ERROR:", e.message); }
 
-ok("版本号 v2.9.1", (document.getElementById("appVersion").textContent || "").indexOf("2.9.1") !== -1);
+ok("版本号 v3.0.9", (document.getElementById("appVersion").textContent || "").indexOf("3.0.9") !== -1);
 const taskList = document.getElementById("taskList");
 const total = taskList.children.length;
 ok("自动排程产生任务", total > 0);
@@ -53,8 +53,10 @@ ok("存在 下一个 按钮", !!document.getElementById("wizNext"));
 ok("第1步时 上一个 禁用", document.getElementById("wizPrev").disabled === true);
 ok("起始显示 1/N", document.getElementById("wizCount").textContent.trim().indexOf("1 /") === 0);
 
-// 2. 为第1个动作设定 20kg/4组/10次，按圆形完成 -> 标记完成并前进
-setWheel("wheelW", 8); setWheel("wheelS", 3); setWheel("wheelR", 9);
+// 2. 为第1个动作设定参数（自适应：仅负重动作有重量滚轮），按圆形完成 -> 标记完成并前进
+setWheel("wheelS", 3);
+if (document.getElementById("wheelItemsW").children.length) setWheel("wheelW", 8);
+setWheel("wheelR", 9);
 document.getElementById("wizDone").click();
 ok("完成后前进到第2步", document.getElementById("wizCount").textContent.trim().indexOf("2 /") === 0);
 
@@ -63,7 +65,9 @@ exitToHome();
 ok("返回后向导关闭", document.getElementById("wizard").hidden === true);
 let first = taskList.children[0];
 ok("第1项=已完成", first.querySelector(".task-status").textContent.indexOf("已完成") !== -1);
-ok("第1项重量回显20", first.querySelector(".tf-w").value === "20");
+const firstW = first.querySelector(".tf-w");
+if (firstW) ok("第1项重量回显20", firstW.value === "20");
+else ok("第1项为自主动作(无重量输入)", !!first.querySelector(".tf-static"));
 ok("第2项=未完成", taskList.children[1].querySelector(".task-status").textContent.indexOf("未完成") !== -1);
 
 // 4. 再次进入 -> 断点续练，回到上次退出的第2步
@@ -84,10 +88,12 @@ ok("翻页不改动完成状态(第2项仍未完成)", taskList.children[1].quer
 // 6. 回到第2项（曾被翻页经过但未完成），逐个按圆形完成 -> 全部完成并结束打卡
 document.getElementById("wizPrev").click(); // 第3步 -> 第2步（index1，尚未完成）
 ok("回到第2步", document.getElementById("wizCount").textContent.trim().indexOf("2 /") === 0);
-document.getElementById("wizDone").click(); // 第2项完成->3
-document.getElementById("wizDone").click(); // 第3项完成->4
-document.getElementById("wizDone").click(); // 第4项完成->5
-document.getElementById("wizDone").click(); // 第5项(末步)完成->结束
+// 动态点完成直到全部完成（向导关闭）
+let guard = 0;
+while (!document.getElementById("wizard").hidden && guard < taskList.children.length + 4) {
+  document.getElementById("wizDone").click();
+  guard++;
+}
 
 setTimeout(function () {
   ok("结束后向导关闭", document.getElementById("wizard").hidden === true);

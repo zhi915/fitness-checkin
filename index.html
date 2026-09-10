@@ -3,13 +3,14 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <meta name="theme-color" content="#11998e" />
+  <meta name="theme-color" content="#2563EB" />
   <meta name="description" content="健身打卡 - 记录每一次坚持" />
   <title>健身打卡</title>
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="icon.svg" />
-  <link rel="stylesheet" href="css/style.css?v=550" />
+  <link rel="stylesheet" href="css/style.css?v=690" />
+  <link rel="stylesheet" href="css/theme.css?v=690" />
 </head>
 <body>
   <!-- 登录已移除（无登录版 v2.2.0）：打开即进入主界面 -->
@@ -22,8 +23,13 @@
           <div class="header-title">健身打卡</div>
         </div>
         <div class="header-user">
-          <span class="app-version" id="appVersion" style="font-size:12px;opacity:0.7"></span>
+          <span class="app-version" id="appVersion" style="font-size:11px;opacity:0.7"></span>
         </div>
+      </div>
+      <!-- 场景切换：居家 / 健身房（影响动作库与推荐） -->
+      <div class="scene-switch" id="sceneSwitch">
+        <button class="scene-btn" data-scene="home"><span class="scene-ico">🏠</span>居家</button>
+        <button class="scene-btn" data-scene="gym"><span class="scene-ico">🏢</span>健身房</button>
       </div>
     </header>
 
@@ -51,21 +57,24 @@
         </div>
 
         <div class="cal-summary" id="calSummary">
-          <div class="cal-sum-left">
-            <div class="cal-sum-num" id="calSumNum">0</div>
-            <div class="cal-sum-label">今日预计消耗 (千卡)</div>
+          <div class="cal-ring-wrap">
+            <svg class="cal-ring" id="calRing" viewBox="0 0 120 120" aria-hidden="true"></svg>
+            <div class="cal-ring-center">
+              <div class="cal-ring-num" id="calSumNum">0</div>
+              <div class="cal-ring-label">今日消耗<br />千卡</div>
+            </div>
           </div>
-          <div class="cal-sum-right">
-            <div class="cal-type-bar" id="calTypeBar"></div>
+          <div class="cal-sum-side">
             <div class="cal-type-legend" id="calTypeLegend"></div>
             <div class="cal-sum-note">估算值，仅供参考</div>
           </div>
           <div class="cal-sum-empty" id="calSumEmpty" hidden>添加动作或记录运动后自动估算</div>
         </div>
 
-        <div class="reco-banner" id="recoBanner" hidden></div>
-
-        <div class="section-title">今日任务 <span class="task-progress" id="taskProgress"></span></div>
+        <div class="section-title section-title-row">
+          <span class="section-title-main">今日任务 <span class="task-progress" id="taskProgress"></span></span>
+          <button class="sec-load-btn" id="taskLoadBtn" title="载入推荐训练">载入</button>
+        </div>
         <div class="task-current" id="taskCurrent"></div>
         <div class="task-list" id="taskList"></div>
         <div class="task-add">
@@ -141,11 +150,34 @@
 
         <div class="chart-card">
           <div class="chart-title">设置</div>
-          <div class="settings-row">
-            <label>体重 (kg)</label>
-            <input type="number" id="inpWeight" inputmode="decimal" min="20" max="250" step="0.5" />
+          <div class="settings-group">
+            <div class="settings-row">
+              <label>用户名</label>
+              <input type="text" id="inpName" maxlength="12" placeholder="怎么称呼你？" />
+            </div>
+            <div class="settings-row">
+              <label>体重 (kg)</label>
+              <input type="number" id="inpWeight" inputmode="decimal" min="20" max="250" step="0.5" />
+            </div>
+            <div class="settings-row">
+              <label>身高 (cm)</label>
+              <input type="number" id="inpHeight" inputmode="numeric" min="120" max="230" step="1" />
+            </div>
+            <div class="settings-row">
+              <label>年龄</label>
+              <input type="number" id="inpAge" inputmode="numeric" min="10" max="99" step="1" />
+            </div>
+            <div class="settings-row">
+              <label>性别</label>
+              <div class="gender-toggle" id="genderToggle">
+                <button data-gender="male">男</button>
+                <button data-gender="female">女</button>
+              </div>
+            </div>
           </div>
-          <div class="cal-sum-note">卡路里估算会随体重变化（仅本地保存）</div>
+          <div class="settings-note">身体数据用于卡路里精确估算（身高/年龄/性别参与基础代谢计算），仅本地保存。</div>
+          <button class="btn-ghost" id="editProfileBtn" style="margin-top:12px;width:100%">完善个人信息</button>
+          <button class="btn-ghost" id="themeBtn" style="margin-top:8px;width:100%">🎨 主题与壁纸</button>
         </div>
 
         <div class="danger-zone">
@@ -178,6 +210,69 @@
     </nav>
   </div>
 
+  <!-- 默认信息（首次进入引导；也可随时在统计页修改） -->
+  <div class="profile-overlay" id="profileOverlay" hidden>
+    <div class="profile-card">
+      <div class="profile-ico">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#ic-bodyweight"></use></svg>
+      </div>
+      <div class="profile-title">先完善你的基础信息</div>
+      <div class="profile-sub">用于个性化推荐与卡路里精确估算，仅保存在本机。</div>
+
+      <div class="profile-field">
+        <label>用户名</label>
+        <input type="text" id="profileName" maxlength="12" placeholder="怎么称呼你？" />
+      </div>
+
+      <div class="profile-field">
+        <label>性别</label>
+        <div class="gender-toggle profile-gender" id="profileGender">
+          <button data-gender="male">男</button>
+          <button data-gender="female">女</button>
+        </div>
+      </div>
+
+      <div class="profile-field">
+        <label>体重 (kg)</label>
+        <input type="number" id="profileWeight" inputmode="decimal" min="20" max="250" step="0.5" placeholder="如 72" />
+      </div>
+
+      <div class="profile-field">
+        <label>身高 (cm)</label>
+        <input type="number" id="profileHeight" inputmode="numeric" min="120" max="230" step="1" placeholder="如 180" />
+      </div>
+
+      <div class="profile-field">
+        <label>年龄</label>
+        <input type="number" id="profileAge" inputmode="numeric" min="10" max="99" step="1" placeholder="如 25" />
+      </div>
+
+      <button class="profile-save" id="profileSave">保存并开始</button>
+      <button class="profile-skip" id="profileSkip">稍后再说</button>
+    </div>
+  </div>
+
+  <!-- 主题与壁纸 -->
+  <div class="profile-overlay" id="themeOverlay" hidden>
+    <div class="profile-card theme-card">
+      <div class="profile-title">主题与壁纸</div>
+      <div class="profile-sub">选一个主题，或上传自己的壁纸作为背景。</div>
+
+      <div class="theme-grid" id="themeGrid"></div>
+
+      <div class="theme-upload">
+        <label class="theme-upload-btn">
+          <input type="file" id="wallpaperInput" accept="image/*" hidden />
+          📷 上传自定义壁纸
+        </label>
+        <button class="theme-upload-clear" id="wallpaperClear" hidden>移除壁纸</button>
+      </div>
+      <div class="theme-wallpaper-name" id="wallpaperName"></div>
+
+      <button class="profile-save" id="themeSave">完成</button>
+    </div>
+  </div>
+
   <!-- 分步打卡向导（点击「今日打卡」进入） -->
   <div class="wizard" id="wizard" hidden>
     <div class="wiz-top">
@@ -186,14 +281,15 @@
       <div class="wiz-count" id="wizCount"></div>
     </div>
     <div class="wiz-body" id="wizBody">
+      <div class="wiz-action-ico" id="wizActionIco"></div>
       <div class="wiz-action-name" id="wizActionName"></div>
       <div class="wiz-action-meta" id="wizActionMeta"></div>
-      <div class="wiz-wheels">
+      <div class="wiz-wheels" id="wizWheels">
         <div class="wheel" id="wheelW"><div class="wheel-items" id="wheelItemsW"></div></div>
         <div class="wheel" id="wheelS"><div class="wheel-items" id="wheelItemsS"></div></div>
         <div class="wheel" id="wheelR"><div class="wheel-items" id="wheelItemsR"></div></div>
       </div>
-      <div class="wiz-wheel-labels"><span>重量(kg)</span><span>组数</span><span>次数</span></div>
+      <div class="wiz-wheel-labels" id="wizWheelLabels"><span id="lblW">重量(kg)</span><span id="lblS">组数</span><span id="lblR">次数</span></div>
     </div>
     <div class="wiz-done-view" id="wizDoneView" hidden>
       <div class="wiz-done-ico">✓</div>
@@ -201,7 +297,10 @@
       <div class="wiz-done-sub" id="wizDoneSub"></div>
     </div>
     <div class="wiz-foot" id="wizFoot">
-      <div class="wiz-cal" id="wizCal"></div>
+      <div class="wiz-cal" id="wizCal">
+        <span class="wiz-cal-cur" id="wizCalCur"></span>
+        <span class="wiz-cal-total" id="wizCalTotal"></span>
+      </div>
       <div class="wiz-foot-btns">
         <button class="wiz-nav" id="wizPrev">上一个</button>
         <button class="wiz-done-btn" id="wizDone" aria-label="完成该动作">✓</button>
@@ -296,6 +395,80 @@
 
   <div class="toast" id="toast" hidden></div>
 
-  <script src="js/app.js?v=550"></script>
+  <!-- 线型动作图标集（内联 SVG symbol，离线可用，颜色随 currentColor） -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <!-- 通用肌群 / 动作图标：统一 24x24 viewBox，stroke 线型 -->
+      <symbol id="ic-chest" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 8c2.5-1.5 5-1.5 9-1.5s6.5 0 9 1.5"/><path d="M4 8v5c0 1.5 1.2 2.5 2.8 2.5h3.4c1 0 1.8-.8 1.8-1.8V8"/><path d="M20 8v5c0 1.5-1.2 2.5-2.8 2.5h-3.4c-1 0-1.8-.8-1.8-1.8V8"/>
+      </symbol>
+      <symbol id="ic-back" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 4v16"/><path d="M6 7c0 3 1 6 6 6s6-3 6-6"/><path d="M8 20l4-3 4 3"/>
+      </symbol>
+      <symbol id="ic-leg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M9 3h6l1 8-1 4-1 6h-2l-.5-6L10 21H8l-1-6 0-4z"/>
+      </symbol>
+      <symbol id="ic-shoulder" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="6" cy="8" r="2.5"/><circle cx="18" cy="8" r="2.5"/><path d="M8.5 8h7"/><path d="M6 10.5V16a3 3 0 0 0 3 3h6a3 3 0 0 0 3-3v-5.5"/>
+      </symbol>
+      <symbol id="ic-biceps" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M5 10c0-2 1.5-3.5 3.5-3.5S12 8 12 10"/><path d="M12 6.5c2 0 4 1.5 4 4.5 0 3-2 5-5 5H8c-1.7 0-3-1.3-3-3"/>
+        <path d="M16 11c1.5.5 2.5 2 2.5 4"/>
+      </symbol>
+      <symbol id="ic-core" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="7" y="4" width="10" height="16" rx="4"/><path d="M7 9h10M7 14h10"/><path d="M12 4v16"/>
+      </symbol>
+      <symbol id="ic-cardio" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 12h4l2-5 3 10 2.5-7 1.5 4h5"/>
+      </symbol>
+      <symbol id="ic-stretch" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="7" cy="5" r="2"/><path d="M7 7v6l4 3 3 5"/><path d="M7 10h6l3-2"/>
+      </symbol>
+      <symbol id="ic-dumbbell" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 9v6M7 7v10M17 7v10M20 9v6M7 12h10"/>
+      </symbol>
+      <symbol id="ic-barbell" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M2 10v4M5 8v8M19 8v8M22 10v4M5 12h14"/>
+      </symbol>
+      <symbol id="ic-machine" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="15" width="8" height="5" rx="1"/><path d="M11 17h5a3 3 0 0 0 3-3V7"/><circle cx="19" cy="5" r="2"/>
+      </symbol>
+      <symbol id="ic-bodyweight" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="5" r="2.2"/><path d="M8 21v-5l-2-3 3-2h6l3 2-2 3v5"/><path d="M9 12h6"/>
+      </symbol>
+      <symbol id="ic-plank" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="6" cy="9" r="1.8"/><path d="M7.5 10.5 12 12l6 3"/><path d="M12 12v6M18 15v3"/>
+      </symbol>
+      <symbol id="ic-pullup" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 4h16"/><path d="M8 4v6a4 4 0 0 0 8 0V4"/><path d="M12 14v6"/>
+      </symbol>
+      <symbol id="ic-squat" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="4.5" r="2"/><path d="M12 6.5v4l-3 3 2 2 1-2 1 2 2-2-3-3"/><path d="M9 13.5 6 22M15 13.5 18 22"/>
+      </symbol>
+      <symbol id="ic-run" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="14" cy="4.5" r="1.8"/><path d="M13 8l-3 4 3 2 1 5"/><path d="M10 12l-4 2M13 14l-3 4"/>
+      </symbol>
+      <symbol id="ic-yoga" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="4.5" r="2"/><path d="M12 7v5M12 9l-5 3M12 9l5 3"/><path d="M7 20c2-2 3.5-3 5-3s3 1 5 3"/>
+      </symbol>
+      <symbol id="ic-ball" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="8"/><path d="M12 4v16M4 12h16"/>
+      </symbol>
+      <symbol id="ic-swim" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="6" cy="8" r="1.8"/><path d="M8 10l6 1 5-2"/><path d="M3 16c1.5 1.5 3 1.5 4.5 0s3-1.5 4.5 0 3 1.5 4.5 0 3-1.5 4.5 0"/>
+      </symbol>
+      <symbol id="ic-cycle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="6" cy="17" r="3.2"/><circle cx="18" cy="17" r="3.2"/><path d="M6 17l4-7h5l3 7M9 10h4M13 10l-1 7"/>
+      </symbol>
+      <symbol id="ic-walk" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="13" cy="4.5" r="1.8"/><path d="M12 7l-1 5 2 2 1 6"/><path d="M11 12l-4 2M13 14l-3 3"/>
+      </symbol>
+      <symbol id="ic-other" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/>
+      </symbol>
+    </defs>
+  </svg>
+
+  <script src="js/app.js?v=690"></script>
 </body>
 </html>

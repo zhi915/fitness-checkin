@@ -1,0 +1,296 @@
+/* =========================================================
+   主题 / 壁纸系统
+   - <html data-theme="xxx"> 切换
+   - 壁纸作为整页背景；各主题用不同的玻璃拟态/覆盖层与配色
+   - 蓝底（primary 系）随主题替换为壁纸协调色
+   ========================================================= */
+
+/* 默认壁纸路径（可由 JS 覆盖为 data.wallpaper） */
+:root {
+  --wp-image: url("../assets/wallpaper-snow.jpg");
+  --wp-overlay: none;          /* 覆盖在壁纸上的渐变/纯色遮罩 */
+  --wp-blur: 0px;              /* 壁纸模糊 */
+  --wp-fixed: scroll;          /* 背景附着 */
+}
+
+/* 壁纸层：固定在全屏最底，位于内容之下 */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  background-image: var(--wp-overlay), var(--wp-image);
+  background-size: cover, cover;
+  background-position: center, center;
+  background-repeat: no-repeat;
+  filter: blur(var(--wp-blur));
+  transform: scale(1.04);       /* 防止模糊露边 */
+  transition: opacity .4s ease;
+}
+/* 未启用主题时不显示壁纸 */
+html:not([data-theme]) body::before,
+html[data-theme="plain"] body::before { opacity: 0; }
+
+/* 通用玻璃卡片基础类（主题在各自规则里覆盖变量即可） */
+html[data-theme] body { background: transparent; }
+
+/* ---------- 主题 A：宁静夜（深蓝玻璃拟态） ---------- */
+html[data-theme="night"] {
+  --primary: #7AA2F7;
+  --primary-600: #5B87E0;
+  --primary-700: #3F6BC7;
+  --primary-50: rgba(122,162,247,0.16);
+  --primary-100: rgba(122,162,247,0.28);
+  --accent: #9BB8FF;
+  --bg: transparent;
+  --card: rgba(22,30,54,0.62);
+  --text: #EEF3FF;
+  --text-sub: #B7C4E6;
+  --text-hint: #8294BC;
+  --line: rgba(140,165,220,0.22);
+  --line-soft: rgba(140,165,220,0.12);
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.28);
+  --shadow: 0 6px 20px rgba(0,0,0,0.34);
+  --shadow-lg: 0 14px 40px rgba(0,0,0,0.44);
+  --wp-overlay: linear-gradient(180deg, rgba(10,16,34,0.42), rgba(10,16,34,0.68));
+  --wp-blur: 0px;
+}
+html[data-theme="night"] body { color: var(--text); }
+html[data-theme="night"] .app-header {
+  background: linear-gradient(160deg, rgba(20,30,60,0.72), rgba(14,22,44,0.82));
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--line);
+}
+html[data-theme="night"] .card,
+html[data-theme="night"] .hero-card,
+html[data-theme="night"] .cal-summary,
+html[data-theme="night"] .reco-banner,
+html[data-theme="night"] .chart-card,
+html[data-theme="night"] .plan-card,
+html[data-theme="night"] .task-item,
+html[data-theme="night"] .sum-card,
+html[data-theme="night"] .sheet,
+html[data-theme="night"] .wizard,
+html[data-theme="night"] .profile-card {
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+html[data-theme="night"] .bottom-nav {
+  background: rgba(14,22,44,0.86);
+  backdrop-filter: blur(12px);
+  border-top: 1px solid var(--line);
+}
+html[data-theme="night"] input,
+html[data-theme="night"] .tf-static,
+html[data-theme="night"] .lib-part,
+html[data-theme="night"] .chip { background: rgba(30,42,72,0.68); color: var(--text); border-color: var(--line); }
+
+/* ---------- 主题 B：雪光柔白（明亮 + 磨砂白玻璃，强透明让壁纸透出） ---------- */
+html[data-theme="snow"] {
+  --primary: #3B6FD4;
+  --primary-600: #2F5DBB;
+  --primary-700: #24499A;
+  --primary-50: rgba(224,235,255,0.30);
+  --primary-100: rgba(200,220,255,0.36);
+  --accent: #62A0F0;
+  --bg: transparent;
+  --card: rgba(255,255,255,0.2);        /* 强透明磨砂白：壁纸大面积透出 */
+  --text: #14203A;
+  --text-sub: #41527A;
+  --text-hint: #6E7F9C;
+  --line: rgba(150,172,205,0.5);
+  --line-soft: rgba(190,205,230,0.28);
+  --shadow-sm: 0 1px 2px rgba(30,50,90,0.08);
+  --shadow: 0 6px 20px rgba(30,50,90,0.13);
+  --shadow-lg: 0 14px 40px rgba(30,50,90,0.18);
+  --wp-overlay: linear-gradient(180deg, rgba(238,244,255,0.10), rgba(238,244,255,0.18));
+  --wp-blur: 1px;
+}
+html[data-theme="snow"] body { color: var(--text); }
+html[data-theme="snow"] .app-header {
+  background: linear-gradient(160deg, rgba(255,255,255,0.24), rgba(228,238,255,0.32));
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--line);
+}
+html[data-theme="snow"] .header-sub { color: #4F6188; }
+html[data-theme="snow"] .header-title { color: var(--text); }
+html[data-theme="snow"] .card,
+html[data-theme="snow"] .hero-card,
+html[data-theme="snow"] .cal-summary,
+html[data-theme="snow"] .reco-banner,
+html[data-theme="snow"] .chart-card,
+html[data-theme="snow"] .plan-card,
+html[data-theme="snow"] .task-item,
+html[data-theme="snow"] .today-action,
+html[data-theme="snow"] .ex-item,
+html[data-theme="snow"] .sum-card,
+html[data-theme="snow"] .sheet,
+html[data-theme="snow"] .wizard,
+html[data-theme="snow"] .profile-card,
+html[data-theme="snow"] .task-current-card {
+  backdrop-filter: blur(7px);
+  -webkit-backdrop-filter: blur(7px);
+}
+html[data-theme="snow"] .bottom-nav {
+  background: rgba(255,255,255,0.22);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-top: 1px solid var(--line);
+}
+/* 原本写死的纯白小控件 → 统一改为轻磨砂半透明，让壁纸透出 */
+html[data-theme="snow"] input,
+html[data-theme="snow"] .tf-static,
+html[data-theme="snow"] .lib-part,
+html[data-theme="snow"] .chip,
+html[data-theme="snow"] .tc-replace,
+html[data-theme="snow"] .tc-del,
+html[data-theme="snow"] .task-replace,
+html[data-theme="snow"] .task-status.undone,
+html[data-theme="snow"] .sport-item,
+html[data-theme="snow"] .btn-ghost,
+html[data-theme="snow"] .btn-secondary,
+html[data-theme="snow"] .cal-nav,
+html[data-theme="snow"] .scene-btn.sel,
+html[data-theme="snow"] .gender-toggle button.sel,
+html[data-theme="snow"] .lib-item .lib-ico {
+  background: rgba(255,255,255,0.2);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  color: var(--text);
+  border-color: var(--line);
+}
+html[data-theme="snow"] .scene-btn.sel,
+html[data-theme="snow"] .gender-toggle button.sel { color: var(--primary); }
+
+/* ---------- 主题 C：暗夜霓虹（深色 + 发光描边） ---------- */
+html[data-theme="neon"] {
+  --primary: #22D3EE;
+  --primary-600: #06B6D4;
+  --primary-700: #0891B2;
+  --primary-50: rgba(34,211,238,0.14);
+  --primary-100: rgba(34,211,238,0.3);
+  --accent: #A78BFA;
+  --bg: transparent;
+  --card: rgba(13,18,34,0.78);
+  --text: #E6F7FF;
+  --text-sub: #93A7C9;
+  --text-hint: #5F7396;
+  --line: rgba(34,211,238,0.28);
+  --line-soft: rgba(34,211,238,0.14);
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.4);
+  --shadow: 0 0 18px rgba(34,211,238,0.18);
+  --shadow-lg: 0 0 34px rgba(34,211,238,0.28);
+  --wp-overlay: linear-gradient(180deg, rgba(8,12,26,0.66), rgba(8,12,26,0.86));
+  --wp-blur: 3px;
+}
+html[data-theme="neon"] body { color: var(--text); }
+html[data-theme="neon"] .app-header {
+  background: linear-gradient(160deg, rgba(10,16,34,0.86), rgba(8,12,26,0.92));
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--primary-100);
+  box-shadow: 0 4px 24px rgba(34,211,238,0.18);
+}
+html[data-theme="neon"] .card,
+html[data-theme="neon"] .hero-card,
+html[data-theme="neon"] .cal-summary,
+html[data-theme="neon"] .reco-banner,
+html[data-theme="neon"] .chart-card,
+html[data-theme="neon"] .plan-card,
+html[data-theme="neon"] .task-item,
+html[data-theme="neon"] .sum-card,
+html[data-theme="neon"] .sheet,
+html[data-theme="neon"] .wizard,
+html[data-theme="neon"] .profile-card {
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+html[data-theme="neon"] .bottom-nav {
+  background: rgba(8,12,26,0.92);
+  backdrop-filter: blur(10px);
+  border-top: 1px solid var(--primary-100);
+}
+html[data-theme="neon"] input,
+html[data-theme="neon"] .tf-static,
+html[data-theme="neon"] .lib-part,
+html[data-theme="neon"] .chip { background: rgba(20,28,50,0.8); color: var(--text); border-color: var(--line); }
+
+/* ---------- 主题 D：暖冬（蓝紫 + 暖光点缀） ---------- */
+html[data-theme="warm"] {
+  --primary: #8B7CF6;
+  --primary-600: #7463E8;
+  --primary-700: #5D4ED6;
+  --primary-50: rgba(139,124,246,0.16);
+  --primary-100: rgba(139,124,246,0.3);
+  --accent: #F6A96B;
+  --bg: transparent;
+  --card: rgba(38,32,62,0.6);
+  --text: #F3EFFF;
+  --text-sub: #C3B8E6;
+  --text-hint: #9285B8;
+  --line: rgba(160,145,220,0.24);
+  --line-soft: rgba(160,145,220,0.12);
+  --shadow-sm: 0 1px 2px rgba(20,10,40,0.3);
+  --shadow: 0 6px 20px rgba(50,30,80,0.34);
+  --shadow-lg: 0 14px 40px rgba(50,30,80,0.44);
+  --wp-overlay: linear-gradient(180deg, rgba(24,18,46,0.5), rgba(30,20,52,0.72));
+  --wp-blur: 1px;
+}
+html[data-theme="warm"] body { color: var(--text); }
+html[data-theme="warm"] .app-header {
+  background: linear-gradient(160deg, rgba(40,30,70,0.78), rgba(28,20,50,0.86));
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--line);
+}
+html[data-theme="warm"] .card,
+html[data-theme="warm"] .hero-card,
+html[data-theme="warm"] .cal-summary,
+html[data-theme="warm"] .reco-banner,
+html[data-theme="warm"] .chart-card,
+html[data-theme="warm"] .plan-card,
+html[data-theme="warm"] .task-item,
+html[data-theme="warm"] .sum-card,
+html[data-theme="warm"] .sheet,
+html[data-theme="warm"] .wizard,
+html[data-theme="warm"] .profile-card {
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+html[data-theme="warm"] .bottom-nav {
+  background: rgba(28,20,50,0.88);
+  backdrop-filter: blur(12px);
+  border-top: 1px solid var(--line);
+}
+html[data-theme="warm"] input,
+html[data-theme="warm"] .tf-static,
+html[data-theme="warm"] .lib-part,
+html[data-theme="warm"] .chip { background: rgba(52,42,82,0.68); color: var(--text); border-color: var(--line); }
+
+
+/* ---------- 主题选择弹层 ---------- */
+.theme-card { max-width: 420px; }
+.theme-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 4px; }
+.theme-item {
+  border: 2px solid var(--line); border-radius: 14px; overflow: hidden;
+  cursor: pointer; background: #fff; transition: border-color .18s, transform .12s;
+}
+.theme-item:active { transform: scale(.97); }
+.theme-item.sel { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-50); }
+.theme-swatch {
+  height: 62px; position: relative;
+  background-size: cover; background-position: center;
+  display: flex; align-items: flex-end; padding: 6px;
+}
+.theme-swatch .sw-chip {
+  font-size: 10px; font-weight: 700; color: #fff; border-radius: 999px;
+  padding: 2px 8px; background: rgba(0,0,0,0.34); backdrop-filter: blur(4px);
+}
+.theme-label { font-size: 12.5px; font-weight: 700; text-align: center; padding: 7px 4px; color: var(--text); }
+.theme-item.sel .theme-label { color: var(--primary); }
+.theme-upload { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+.theme-upload-btn {
+  flex: 1; text-align: center; border: 1.5px dashed var(--primary); color: var(--primary);
+  background: var(--primary-50); border-radius: 12px; padding: 12px; font-size: 14px; font-weight: 700; cursor: pointer;
+}
+.theme-upload-clear { border: 1.5px solid var(--line); background: #fff; color: var(--text-sub); border-radius: 12px; padding: 12px 14px; font-size: 13px; font-weight: 600; cursor: pointer; }
+.theme-wallpaper-name { font-size: 11.5px; color: var(--text-hint); text-align: center; }

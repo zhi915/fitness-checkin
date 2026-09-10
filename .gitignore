@@ -1,1 +1,4 @@
 .workbuddy/
+
+# 本地开发临时脚本（下划线前缀，如 _serve.js / _bump.js / _verify.js）
+_*.js

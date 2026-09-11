@@ -4402,7 +4402,19 @@ window.FIT_CLOUD_CONFIG = {
 
   function cloudOn() { return !!(CLOUD_ON && CLOUD && CLOUD.isConfigured()); }
   function isCloudReady() { return cloudOn() && cloud.ready && !!cloud.user; }
-  function cloudErr(e) { return (e && e.message) ? e.message : "网络异常"; }
+  function cloudErr(e) {
+    var msg = (e && e.message) ? e.message : "网络异常";
+    var st = e && (e.status || e.statusCode);
+    if (st === 403) {
+      return "403 来源被拒绝：请到云开发控制台 → 环境配置 → 安全来源，把本站域名加入安全域名";
+    }
+    /* 浏览器跨域被网关拦下时，fetch 只会抛 TypeError（Failed to fetch / Load failed），
+       拿不到状态码——按同一原因（安全来源白名单）给出可操作提示 */
+    if (/failed to fetch|load failed|networkerror|network request failed|blocked by cors/i.test(msg)) {
+      return "跨域请求被拒绝：请把本站域名加进云开发控制台 → 环境配置 → 安全来源的安全域名（约 1-2 分钟生效）";
+    }
+    return msg;
+  }
   function stamp() {
     var d = new Date();
     return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");

@@ -63,6 +63,7 @@ create table if not exists public.profiles (
   id          text primary key default auth.uid(),  -- = 令牌中的 sub（text！见文首坑 1）
   nickname    text        not null default '健身伙伴',
   emoji       text        not null default '💪',
+  avatar      text        not null default '', -- v5.1.3 自定义头像图片（128px JPEG 的 dataURL；空=用 emoji）
   streak      int         not null default 0,   -- 当前连续打卡天数（客户端算好上传）
   total_days  int         not null default 0,   -- 累计打卡天数
   updated_at  timestamptz not null default now()

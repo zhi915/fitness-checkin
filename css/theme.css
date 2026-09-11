@@ -304,3 +304,23 @@ html[data-theme="warm"] .chip { background: rgba(52,42,82,0.68); color: var(--te
 }
 .theme-upload-clear { border: 1.5px solid var(--line); background: #fff; color: var(--text-sub); border-radius: 12px; padding: 12px 14px; font-size: 13px; font-weight: 600; cursor: pointer; }
 .theme-wallpaper-name { font-size: 11.5px; color: var(--text-hint); text-align: center; }
+
+/* ---------- 界面字体 ---------- */
+.theme-section-title {
+  font-size: 12.5px; font-weight: 700; color: var(--text-sub);
+  margin: 16px 0 2px; padding-top: 12px; border-top: 1px solid var(--line-soft);
+}
+.font-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 6px; }
+.font-item {
+  border: 2px solid var(--line); border-radius: 12px; background: #fff;
+  padding: 9px 2px 7px; text-align: center; cursor: pointer; transition: border-color .18s, transform .12s;
+}
+.font-item:active { transform: scale(.97); }
+.font-item.sel { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-50); }
+.font-sample { font-size: 19px; font-weight: 700; line-height: 1.3; color: var(--text); }
+.font-sample.sample-serif { font-family: "Songti SC", "STSong", "Source Han Serif SC", "Noto Serif SC", "SimSun", Georgia, serif; }
+.font-sample.sample-round { font-family: "Hiragino Maru Gothic ProN", "Yuanti SC", "YouYuan", "HYQiHei", "PingFang SC", sans-serif; }
+.font-sample.sample-mono { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
+.font-label { font-size: 11px; font-weight: 700; color: var(--text-sub); margin-top: 4px; }
+.font-item.sel .font-label { color: var(--primary); }
+.font-note { font-size: 11px; color: var(--text-hint); text-align: center; margin-top: 6px; }

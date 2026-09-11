@@ -32,7 +32,7 @@ try {
   try { document.dispatchEvent(new window.Event("DOMContentLoaded")); } catch (e) {}
 } catch (e) { console.log("EVAL ERROR:", e.message); }
 
-ok("版本号 v5.1.2", (document.getElementById("appVersion").textContent || "").indexOf("5.1.2") !== -1);
+ok("版本号 v5.1.3", (document.getElementById("appVersion").textContent || "").indexOf("5.1.3") !== -1);
 
 const checkinText = document.getElementById("checkinText");
 const taskList = document.getElementById("taskList");

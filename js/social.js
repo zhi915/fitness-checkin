@@ -88,16 +88,21 @@
     if (userId) row.user_id = userId;
     return row;
   }
-  /* 个人资料行：id 必须等于 auth.uid()，RLS 才放行 */
-  function profileRow(userId, nickname, emoji, streaks) {
+  /* 个人资料行：id 必须等于 auth.uid()，RLS 才放行。
+     avatar 为可选的自定义图片头像（压缩后的 dataURL，约 5~8KB）。
+     ⚠️ 只有当它真的有值 / 调用方显式要求时才写进 row ——
+        老库没有 avatar 列，写了会报 42703，所以由调用方决定。 */
+  function profileRow(userId, nickname, emoji, streaks, avatar) {
     var s = streaks || {};
-    return {
+    var row = {
       id: userId,
       nickname: normNickname(nickname),
       emoji: emoji || "💪",
       streak: Math.max(0, Number(s.current) || 0),
       total_days: Math.max(0, Number(s.total) || 0)
     };
+    if (avatar != null) row.avatar = avatar;
+    return row;
   }
 
   /* ---------- 云端摘要行 → 聚合视图 ---------- */
@@ -153,6 +158,7 @@
         id: m.user_id,
         nickname: normNickname(m.nickname),
         emoji: m.emoji || "💪",
+        avatar: m.avatar || "",
         streak: Math.max(0, Number(m.streak) || 0),
         totalDays: Math.max(0, Number(m.total_days) || 0),
         todayChecked: !!(t && t.checked),

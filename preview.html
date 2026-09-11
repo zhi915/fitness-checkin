@@ -31,17 +31,32 @@
   --shadow-sm: 0 1px 2px rgba(15,23,42,0.05);
   --shadow: 0 4px 14px rgba(37,99,235,0.10);
   --shadow-lg: 0 10px 30px rgba(37,99,235,0.16);
+  /* 界面字体栈（唯一来源，切换靠 html[data-font] 覆盖这一个变量） */
+  --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
 }
+
+/* 字体方案：与主题同思路，只改 <html data-font="…"> 一个属性即全局生效 */
+html[data-font="serif"] {
+  --font-ui: "Songti SC", "STSong", "Source Han Serif SC", "Noto Serif SC", "SimSun", Georgia, "Times New Roman", serif;
+}
+html[data-font="round"] {
+  --font-ui: "Hiragino Maru Gothic ProN", "Yuanti SC", "YouYuan", "HYQiHei", "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+/* 等宽数字：界面字体不变，只让数字按等宽对齐（卡路里 / 组数 / 日历日期不再跳动） */
+html[data-font="mono"] { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
 html, body {
   margin: 0; padding: 0;
   background: #E8EDF6;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  font-family: var(--font-ui);
   color: var(--text);
   -webkit-font-smoothing: antialiased;
 }
+
+/* 表单控件默认不继承字体，不写这条的话切字体时输入框/按钮会「纹丝不动」 */
+button, input, select, textarea { font-family: inherit; }
 
 #app {
   max-width: 480px;
@@ -656,6 +671,28 @@ html, body {
 .profile-ico svg { width: 28px; height: 28px; }
 .profile-title { font-size: 18px; font-weight: 700; color: var(--text); text-align: center; }
 .profile-sub { font-size: 12px; color: var(--text-sub); text-align: center; line-height: 1.5; margin-top: -6px; }
+
+/* ---------- 头像（emoji 预设 + 自定义图片） ---------- */
+.avatar-block { margin: 12px 0 6px; text-align: center; }
+.avatar-preview {
+  width: 68px; height: 68px; margin: 0 auto 8px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 34px; line-height: 1; background: var(--card-2, rgba(127,127,127,.14));
+  border: 2px solid var(--line); overflow: hidden;
+}
+.avatar-tip { font-size: 12px; color: var(--text-sub); margin-bottom: 8px; }
+.avatar-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin-bottom: 10px; }
+.avatar-opt {
+  font-size: 21px; line-height: 1; padding: 7px 0; border-radius: 10px;
+  border: 1.5px solid var(--line); background: transparent; cursor: pointer;
+}
+.avatar-opt.sel { border-color: var(--primary); background: var(--card-2, rgba(127,127,127,.14)); }
+.avatar-actions { display: flex; gap: 8px; justify-content: center; }
+.avatar-actions .btn-ghost { padding: 7px 14px; font-size: 13px; }
+/* 圆形头像（看板 / 队友卡 / 顶部账号入口）：有图片时由 img 撑满 */
+.avatar-img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; display: block; }
+.has-img { padding: 0 !important; overflow: hidden; background: none !important; }
+
 .profile-field { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .profile-field > label { font-size: 14px; color: var(--text-sub); font-weight: 600; white-space: nowrap; }
 .profile-field input {
@@ -1095,6 +1132,26 @@ html[data-theme="warm"] .chip { background: rgba(52,42,82,0.68); color: var(--te
 .theme-upload-clear { border: 1.5px solid var(--line); background: #fff; color: var(--text-sub); border-radius: 12px; padding: 12px 14px; font-size: 13px; font-weight: 600; cursor: pointer; }
 .theme-wallpaper-name { font-size: 11.5px; color: var(--text-hint); text-align: center; }
 
+/* ---------- 界面字体 ---------- */
+.theme-section-title {
+  font-size: 12.5px; font-weight: 700; color: var(--text-sub);
+  margin: 16px 0 2px; padding-top: 12px; border-top: 1px solid var(--line-soft);
+}
+.font-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 6px; }
+.font-item {
+  border: 2px solid var(--line); border-radius: 12px; background: #fff;
+  padding: 9px 2px 7px; text-align: center; cursor: pointer; transition: border-color .18s, transform .12s;
+}
+.font-item:active { transform: scale(.97); }
+.font-item.sel { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-50); }
+.font-sample { font-size: 19px; font-weight: 700; line-height: 1.3; color: var(--text); }
+.font-sample.sample-serif { font-family: "Songti SC", "STSong", "Source Han Serif SC", "Noto Serif SC", "SimSun", Georgia, serif; }
+.font-sample.sample-round { font-family: "Hiragino Maru Gothic ProN", "Yuanti SC", "YouYuan", "HYQiHei", "PingFang SC", sans-serif; }
+.font-sample.sample-mono { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
+.font-label { font-size: 11px; font-weight: 700; color: var(--text-sub); margin-top: 4px; }
+.font-item.sel .font-label { color: var(--primary); }
+.font-note { font-size: 11px; color: var(--text-hint); text-align: center; margin-top: 6px; }
+
 </style>
 </head>
 <body>
@@ -1266,7 +1323,7 @@ html[data-theme="warm"] .chip { background: rgba(52,42,82,0.68); color: var(--te
           </div>
           <div class="settings-note">身体数据用于卡路里精确估算（身高/年龄/性别参与基础代谢计算），仅本地保存。</div>
           <button class="btn-ghost" id="editProfileBtn" style="margin-top:12px;width:100%">完善个人信息</button>
-          <button class="btn-ghost" id="themeBtn" style="margin-top:8px;width:100%">🎨 主题与壁纸</button>
+          <button class="btn-ghost" id="themeBtn" style="margin-top:8px;width:100%">🎨 主题 / 壁纸 / 字体</button>
         </div>
 
         <div class="danger-zone">
@@ -1360,8 +1417,8 @@ html[data-theme="warm"] .chip { background: rgba(52,42,82,0.68); color: var(--te
   <!-- 主题与壁纸 -->
   <div class="profile-overlay" id="themeOverlay" hidden>
     <div class="profile-card theme-card">
-      <div class="profile-title">主题与壁纸</div>
-      <div class="profile-sub">选一个主题，或上传自己的壁纸作为背景。</div>
+      <div class="profile-title">主题 · 壁纸 · 字体</div>
+      <div class="profile-sub">选一个主题，上传自己的壁纸，也可以换一套界面字体。</div>
 
       <div class="theme-grid" id="themeGrid"></div>
 
@@ -1374,6 +1431,10 @@ html[data-theme="warm"] .chip { background: rgba(52,42,82,0.68); color: var(--te
       </div>
       <div class="theme-wallpaper-name" id="wallpaperName"></div>
 
+      <div class="theme-section-title">界面字体</div>
+      <div class="font-grid" id="fontGrid"></div>
+      <div class="font-note" id="fontNote"></div>
+
       <button class="profile-save" id="themeSave">完成</button>
     </div>
   </div>
@@ -1383,6 +1444,18 @@ html[data-theme="warm"] .chip { background: rgba(52,42,82,0.68); color: var(--te
     <div class="profile-card">
       <div class="profile-title" id="accountTitle">账号</div>
       <div class="profile-sub" id="accountSub">—</div>
+
+      <!-- 头像：预设 emoji + 自定义图片（队友看板会同步显示） -->
+      <div class="avatar-block">
+        <div class="avatar-preview" id="avatarPreview">💪</div>
+        <div class="avatar-tip">选一个表情，或上传自己的图片</div>
+        <div class="avatar-grid" id="avatarGrid"></div>
+        <div class="avatar-actions">
+          <button class="btn-ghost" id="avatarUploadBtn" type="button">上传图片</button>
+          <button class="btn-ghost" id="avatarClearBtn" type="button" hidden>用回表情</button>
+        </div>
+        <input type="file" id="avatarFile" accept="image/*" hidden />
+      </div>
 
       <div class="profile-field">
         <label>邮箱</label>
@@ -2142,16 +2215,21 @@ window.FIT_CLOUD_CONFIG = {
     if (userId) row.user_id = userId;
     return row;
   }
-  /* 个人资料行：id 必须等于 auth.uid()，RLS 才放行 */
-  function profileRow(userId, nickname, emoji, streaks) {
+  /* 个人资料行：id 必须等于 auth.uid()，RLS 才放行。
+     avatar 为可选的自定义图片头像（压缩后的 dataURL，约 5~8KB）。
+     ⚠️ 只有当它真的有值 / 调用方显式要求时才写进 row ——
+        老库没有 avatar 列，写了会报 42703，所以由调用方决定。 */
+  function profileRow(userId, nickname, emoji, streaks, avatar) {
     var s = streaks || {};
-    return {
+    var row = {
       id: userId,
       nickname: normNickname(nickname),
       emoji: emoji || "💪",
       streak: Math.max(0, Number(s.current) || 0),
       total_days: Math.max(0, Number(s.total) || 0)
     };
+    if (avatar != null) row.avatar = avatar;
+    return row;
   }
 
   /* ---------- 云端摘要行 → 聚合视图 ---------- */
@@ -2207,6 +2285,7 @@ window.FIT_CLOUD_CONFIG = {
         id: m.user_id,
         nickname: normNickname(m.nickname),
         emoji: m.emoji || "💪",
+        avatar: m.avatar || "",
         streak: Math.max(0, Number(m.streak) || 0),
         totalDays: Math.max(0, Number(m.total_days) || 0),
         todayChecked: !!(t && t.checked),
@@ -2629,7 +2708,7 @@ window.FIT_CLOUD_CONFIG = {
   ];
 
   /* ---------- 应用版本（主界面右上角标识，确认是否运行最新版） ---------- */
-  var APP_VERSION = "5.1.2";
+  var APP_VERSION = "5.1.3";
 
   /* ---------- 数据层（单机版：统一存储，无登录） ---------- */
   var DATA_KEY = "fitapp_data";
@@ -2652,8 +2731,11 @@ window.FIT_CLOUD_CONFIG = {
       scene: "home",     // home | gym ：当前训练场景
       username: "",      // 用户名（用于首页问候等个性化称呼）
       appTitle: "健身打卡", // 首页 header 标题（统计页设置可改）
+      avatar: "",       // 头像 emoji（空则用默认 💪）
+      avatarImage: "",  // 自定义头像图片（压缩后的 dataURL；空表示用 emoji）
       theme: "snow",     // 主题 key（空或 plain = 蓝白；night/snow/neon/warm）；默认「雪光柔白」
       wallpaper: "",     // 自定义壁纸 dataURL（空则用内置壁纸）
+      font: "",          // 界面字体 key（空或 sans = 系统无衬线；serif/round/mono）
       profileDone: false // 是否已确认过「默认信息」（首次引导完成后置 true）
     };
   }
@@ -2677,8 +2759,11 @@ window.FIT_CLOUD_CONFIG = {
       if (data.scene !== "home" && data.scene !== "gym") data.scene = "home";
       if (typeof data.username !== "string") data.username = "";
       if (typeof data.appTitle !== "string" || !data.appTitle) data.appTitle = "健身打卡";
+      if (typeof data.avatar !== "string") data.avatar = "";          // v5.1.3 头像 emoji
+      if (typeof data.avatarImage !== "string") data.avatarImage = ""; // v5.1.3 自定义图片头像
       if (typeof data.theme !== "string") data.theme = "";
       if (typeof data.wallpaper !== "string") data.wallpaper = "";
+      if (typeof data.font !== "string") data.font = "";   // v5.1.3 界面字体
       if (typeof data.profileDone !== "boolean") data.profileDone = false;
       /* v4.0.0 打卡逻辑重构 · 旧数据迁移：
          把旧的 checkedIn 状态位归一为 confirmed（派生层唯一保留的显式确认标志），
@@ -4477,16 +4562,92 @@ window.FIT_CLOUD_CONFIG = {
   }
   function myNickname() { return getUsername() || "我"; }
 
+  /* ---------- 头像（v5.1.3）----------
+     两种形态：预设 emoji，或用户自己上传的压缩图片（dataURL）。
+     显示优先级：图片 > emoji > 默认 💪。
+     同步：profiles.emoji / profiles.avatar —— 队友那侧靠 v5.1.2 的轮询，
+     20 秒内自动更新（roomSignature 里已把 avatar 指纹算进去）。 */
+  var AVATAR_EMOJIS = ["💪", "🏋️", "🤸", "🧘", "🏃", "🚴",
+                       "🏊", "⛹️", "🥊", "🦾", "⚡", "🔥",
+                       "🐉", "🦍", "🐯", "🦊", "🐼", "🐨",
+                       "🐶", "🐱", "🚀", "⭐", "🌙", "☀️",
+                       "🌈", "🍎", "🥦", "🥑", "💎", "🎯"];
+  function myAvatarEmoji() { return (typeof data.avatar === "string" && data.avatar) ? data.avatar : ROOM_EMOJI; }
+  function myAvatarImage() { return (typeof data.avatarImage === "string") ? data.avatarImage : ""; }
+  /* 把一个元素画成头像：有图片放 img，否则放 emoji 文本 */
+  function paintAvatar(el, emoji, image) {
+    if (!el) return;
+    el.innerHTML = "";
+    if (image) {
+      var img = document.createElement("img");
+      img.src = image;
+      img.alt = "头像";
+      img.className = "avatar-img";
+      el.appendChild(img);
+      el.classList.add("has-img");
+    } else {
+      el.classList.remove("has-img");
+      el.textContent = emoji || ROOM_EMOJI;
+    }
+  }
+  /* 选 emoji：同时清掉图片头像（两者互斥） */
+  function setAvatarEmoji(e) {
+    data.avatar = e || "";
+    data.avatarImage = "";
+    save();
+    afterAvatarChange();
+  }
+  /* 存图片头像（传入的必须是已压缩好的 dataURL） */
+  function setAvatarImage(dataUrl) {
+    data.avatarImage = dataUrl || "";
+    save();
+    afterAvatarChange();
+  }
+  function clearAvatarImage() {
+    data.avatarImage = "";
+    save();
+    afterAvatarChange();
+  }
+  /* 换头像后：立刻上云 + 重渲染（自己这侧即时生效，不等云端回写） */
+  function afterAvatarChange() {
+    renderHeaderAccount();
+    renderAvatarPicker();
+    if (isCloudReady()) {
+      pushProfile(true).then(function () { return loadRoomData(); })
+        .then(renderRoom).catch(function () {});
+    } else {
+      renderRoom();
+    }
+  }
+
   /* ---------- 上报：资料 + 每日摘要 ---------- */
   /* 昵称/连胜变化才上报，避免每次打卡都多打一次请求 */
   function pushProfile(force) {
     if (!isCloudReady()) return Promise.resolve();
     var s = computeStreaks();
-    var sig = myNickname() + "|" + s.current + "|" + s.total;
+    var sig = myNickname() + "|" + s.current + "|" + s.total + "|" + myAvatarEmoji() + "|" +
+      (myAvatarImage() ? myAvatarImage().slice(-24) : "");
     if (!force && sig === profileSig) return Promise.resolve();
-    var row = SOCIAL.profileRow(cloud.user.id, myNickname(), ROOM_EMOJI, s);
+    var row = SOCIAL.profileRow(cloud.user.id, myNickname(), myAvatarEmoji(), s,
+      cloud.hasAvatar === false ? null : myAvatarImage());
     row.updated_at = new Date().toISOString();
-    return CLOUD.upsert("profiles", [row], "id").then(function () { profileSig = sig; });
+    return CLOUD.upsert("profiles", [row], "id").then(function () { profileSig = sig; })
+      .catch(function (e) {
+        /* 老库没有 avatar 列（42703 未定义列 / PGRST204）：去掉该列重试一次，
+           并记住这件事，之后都不再带 —— 没跑补丁也能正常用，只是队友看不到图片头像 */
+        if (!noAvatarCol(e) || cloud.hasAvatar === false) throw e;
+        cloud.hasAvatar = false;
+        var row2 = SOCIAL.profileRow(cloud.user.id, myNickname(), myAvatarEmoji(), s, null);
+        row2.updated_at = new Date().toISOString();
+        return CLOUD.upsert("profiles", [row2], "id").then(function () { profileSig = sig; });
+      });
+  }
+  /* 判断「profiles 表里还没有 avatar 列」 */
+  function noAvatarCol(e) {
+    if (!e) return false;
+    var c = String(e.code || "");
+    var m = String(e.message || "");
+    return /42703|PGRST204|does not exist/i.test(c + " " + m) && /avatar/i.test(c + " " + m);
   }
   function pushSummary(day) {
     if (!isCloudReady()) return Promise.resolve();
@@ -4557,13 +4718,34 @@ window.FIT_CLOUD_CONFIG = {
     var from = SOCIAL.monthStart(today);
     var w = SOCIAL.weekStart(today);
     var start = (from < w) ? from : w;
+    var sel = cloud.hasAvatar === false
+      ? "user_id,joined_at,profiles(nickname,emoji,streak,total_days)"
+      : "user_id,joined_at,profiles(nickname,emoji,streak,total_days,avatar)";
     return CLOUD.select("room_members", {
-      select: "user_id,joined_at,profiles(nickname,emoji,streak,total_days)",
+      select: sel,
       room_id: "eq." + cloud.room.id
+    }).catch(function (e) {
+      /* 同上：老库没 avatar 列 → 降级重试一次，之后都用不带列的写法 */
+      if (!noAvatarCol(e) || cloud.hasAvatar === false) throw e;
+      cloud.hasAvatar = false;
+      return CLOUD.select("room_members", {
+        select: "user_id,joined_at,profiles(nickname,emoji,streak,total_days)",
+        room_id: "eq." + cloud.room.id
+      });
     }).then(function (rows) {
       cloud.members = (rows || []).map(function (m) {
         var p = m.profiles || {};
-        return { user_id: m.user_id, nickname: p.nickname, emoji: p.emoji, streak: p.streak, total_days: p.total_days };
+        return {
+          user_id: m.user_id, nickname: p.nickname, emoji: p.emoji,
+          avatar: p.avatar || "", streak: p.streak, total_days: p.total_days
+        };
+      });
+      /* 自己那一行用本地头像覆盖：刚换完头像要立刻可见，不等云端回写 */
+      cloud.members.forEach(function (m) {
+        if (cloud.user && m.user_id === cloud.user.id) {
+          m.emoji = myAvatarEmoji();
+          m.avatar = myAvatarImage();
+        }
       });
       var ids = cloud.members.map(function (m) { return m.user_id; });
       if (!ids.length) return [];
@@ -4697,8 +4879,10 @@ window.FIT_CLOUD_CONFIG = {
   var roomPollTimer = null;
   var roomSigCache = "";
   function roomSignature() {
+    /* 头像图片很长，只取尾部一段做指纹即可（能感知变化就行） */
     var m = (cloud.members || []).map(function (x) {
-      return x.user_id + ":" + (x.nickname || "") + ":" + (x.emoji || "") + ":" + (x.streak || 0);
+      return x.user_id + ":" + (x.nickname || "") + ":" + (x.emoji || "") + ":" + (x.streak || 0) +
+        ":" + (x.avatar ? x.avatar.slice(-32) : "");
     }).join("|");
     var s = (cloud.summaries || []).map(function (r) {
       return r.user_id + ":" + r.day + ":" + (r.checked ? 1 : 0) + ":" + (r.done_count || 0) + ":" + (r.kcal || 0);
@@ -4743,12 +4927,12 @@ window.FIT_CLOUD_CONFIG = {
   function renderHeaderAccount() {
     var btn = $("headerAccountBtn"); if (!btn) return;
     if (isCloudReady() && cloud.user) {
-      btn.textContent = ROOM_EMOJI;
+      paintAvatar(btn, myAvatarEmoji(), myAvatarImage());
       btn.title = cloud.user.is_anonymous
-        ? "设备账号 · 点击绑定邮箱"
+        ? "设备账号 · 点击设置头像 / 绑定邮箱"
         : ("账号：" + (cloud.user.email || ""));
     } else {
-      btn.textContent = "👤";
+      paintAvatar(btn, "👤", "");
       btn.title = cloudOn() ? "正在连接云端…" : "账号 / 登录";
     }
   }
@@ -4769,7 +4953,7 @@ window.FIT_CLOUD_CONFIG = {
       '<div class="tm-list">';
     board.forEach(function (m) {
       h += '<div class="tm-item">' +
-        '<div class="tm-avatar' + (m.todayChecked ? ' done' : '') + '">' + (m.emoji || ROOM_EMOJI) + '</div>' +
+        '<div class="tm-avatar' + (m.todayChecked ? ' done' : '') + '"></div>' +
         '<div class="tm-name">' + escapeHtml((m.id === me ? "我" : m.nickname) || "队友") + '</div>' +
       '</div>';
     });
@@ -4777,6 +4961,8 @@ window.FIT_CLOUD_CONFIG = {
     h += '<div class="tm-foot">' + (done === board.length ? "全员已打卡 🎉" : "点击展开完整看板") + '</div>';
     h += '</div>';
     box.innerHTML = h; box.hidden = false;
+    var nodes = box.querySelectorAll(".tm-avatar");
+    board.forEach(function (m, i) { if (nodes[i]) paintAvatar(nodes[i], m.emoji, m.avatar); });
     var card = $("tmCard"); if (card) card.addEventListener("click", function () { showTab("room"); });
   }
 
@@ -4838,7 +5024,12 @@ window.FIT_CLOUD_CONFIG = {
       return;
     }
     if (!cloud.room) { box.innerHTML = roomNoRoomHtml(); bindNoRoom(); return; }
-    box.innerHTML = roomBoardHtml(); bindRoomBoard();
+    box.innerHTML = roomBoardHtml();
+    /* 头像可能是图片，不能用字符串拼进 innerHTML，渲染完再逐个填充 */
+    var anodes = box.querySelectorAll(".rm-avatar");
+    var view = roomView();
+    view.board.forEach(function (m, i) { if (anodes[i]) paintAvatar(anodes[i], m.emoji, m.avatar); });
+    bindRoomBoard();
   }
 
   function roomNotConfiguredHtml() {
@@ -4922,7 +5113,7 @@ window.FIT_CLOUD_CONFIG = {
     if (!v.board.length) h += '<div class="room-card-sub">还没有成员。</div>';
     v.board.forEach(function (m) {
       h += '<div class="room-member">' +
-        '<div class="rm-avatar' + (m.todayChecked ? ' done' : '') + '">' + m.emoji + '</div>' +
+        '<div class="rm-avatar' + (m.todayChecked ? ' done' : '') + '"></div>' +
         '<div class="rm-main"><div class="rm-name">' + escapeHtml(m.nickname) +
           (m.id === me ? '<span class="me">我</span>' : '') + '</div>' +
         '<div class="rm-meta">连续 ' + m.streak + ' 天 · 累计 ' + m.totalDays + ' 天 · 本周 ' + m.weekKcal + ' 千卡</div></div>' +
@@ -4965,8 +5156,67 @@ window.FIT_CLOUD_CONFIG = {
 
   /* ---------- 账号：绑定邮箱（匿名 → 正式） ---------- */
   var accountFlow = { email: "", mode: "bind" };
+  /* ---------- 头像选择（账号弹层内） ---------- */
+  function renderAvatarPicker() {
+    var prev = $("avatarPreview"), grid = $("avatarGrid"), clearBtn = $("avatarClearBtn");
+    if (prev) paintAvatar(prev, myAvatarEmoji(), myAvatarImage());
+    var hasImg = !!myAvatarImage(), cur = myAvatarEmoji();
+    if (grid) {
+      grid.innerHTML = "";
+      AVATAR_EMOJIS.forEach(function (e) {
+        var b = document.createElement("button");
+        b.type = "button";
+        b.className = "avatar-opt" + (!hasImg && e === cur ? " sel" : "");
+        b.textContent = e;
+        b.addEventListener("click", function () { setAvatarEmoji(e); });
+        grid.appendChild(b);
+      });
+    }
+    if (clearBtn) clearBtn.hidden = !hasImg;
+  }
+
+  /* 选图 → 居中裁剪成正方形 → 缩到 128px → JPEG 压缩。
+     128px / 质量 0.72 ≈ 5~8KB：界面上头像最大只显示 68px，够用；
+     同时不能太大 —— 队友看板每 20 秒会拉一次 profiles，图片越大流量越夸张。
+     透明 PNG 转 JPEG 会变黑，所以先铺一层白底。 */
+  var AVATAR_PX = 128, AVATAR_QUALITY = 0.72, AVATAR_MAX_CHARS = 200000;
+  function compressAvatar(file, cb, errCb) {
+    var fr = new FileReader();
+    fr.onerror = function () { if (errCb) errCb("读取图片失败"); };
+    fr.onload = function () {
+      var img = new Image();
+      img.onerror = function () { if (errCb) errCb("这个文件不是可用的图片"); };
+      img.onload = function () {
+        try {
+          var cv = document.createElement("canvas");
+          cv.width = AVATAR_PX; cv.height = AVATAR_PX;
+          var ctx = cv.getContext("2d");
+          if (!ctx) { if (errCb) errCb("当前浏览器不支持图片处理"); return; }
+          var side = Math.min(img.width || 1, img.height || 1);
+          var sx = ((img.width || 1) - side) / 2, sy = ((img.height || 1) - side) / 2;
+          ctx.fillStyle = "#ffffff";
+          ctx.fillRect(0, 0, AVATAR_PX, AVATAR_PX);
+          ctx.drawImage(img, sx, sy, side, side, 0, 0, AVATAR_PX, AVATAR_PX);
+          cb(cv.toDataURL("image/jpeg", AVATAR_QUALITY));
+        } catch (e) { if (errCb) errCb("图片处理失败"); }
+      };
+      img.src = String(fr.result);
+    };
+    fr.readAsDataURL(file);
+  }
+  function handleAvatarFile(file) {
+    if (!file) return;
+    if (file.type && !/^image\//.test(file.type)) { toast("请选择图片文件"); return; }
+    compressAvatar(file, function (dataUrl) {
+      if (!dataUrl || dataUrl.length > AVATAR_MAX_CHARS) { toast("图片太大了，换一张小一点的"); return; }
+      setAvatarImage(dataUrl);
+      toast("头像已更新");
+    }, function (msg) { toast(msg || "图片处理失败"); });
+  }
+
   function openAccount() {
     var o = $("accountOverlay"); if (!o) return;
+    renderAvatarPicker();
     $("accountCode").value = "";
     $("accountCodeField").hidden = true;
     $("accountVerifyBtn").hidden = true;
@@ -5273,6 +5523,17 @@ window.FIT_CLOUD_CONFIG = {
     $("accountOverlay").addEventListener("click", function (e) { if (e.target === $("accountOverlay")) closeAccount(); });
     $("accountEmail").addEventListener("keydown", function (e) { if (e.key === "Enter") sendAccountCode(); });
     $("accountCode").addEventListener("keydown", function (e) { if (e.key === "Enter") verifyAccountCode(); });
+    /* 头像：上传 / 用回表情 */
+    $("avatarUploadBtn").addEventListener("click", function () { var f = $("avatarFile"); if (f) f.click(); });
+    $("avatarFile").addEventListener("change", function (e) {
+      var f = e.target.files && e.target.files[0];
+      handleAvatarFile(f);
+      e.target.value = "";   // 允许连续选同一个文件
+    });
+    $("avatarClearBtn").addEventListener("click", function () {
+      clearAvatarImage();
+      toast("已用回表情头像");
+    });
     /* 首页右上角账号入口 */
     var hab = $("headerAccountBtn");
     if (hab) hab.addEventListener("click", openAccount);
@@ -5404,6 +5665,54 @@ window.FIT_CLOUD_CONFIG = {
     // 标记「用户自定义壁纸」→ theme.css 据此在任何主题（含 plain）下强制显示壁纸层
     if (data.wallpaper) root.setAttribute("data-wp", "custom");
     else root.removeAttribute("data-wp");
+    applyFont();     // 字体与主题同批应用（备份恢复时也走这里）
+  }
+  /* ---------- 界面字体 ---------- */
+  var DEFAULT_FONT = "sans";
+  var FONTS = [
+    { key: "sans",  name: "无衬线", sample: "健身 Aa", note: "系统默认，最清晰省电" },
+    { key: "serif", name: "衬线",   sample: "健身 Aa", note: "宋体/思源宋体，偏纸质阅读感" },
+    { key: "round", name: "圆体",   sample: "健身 Aa", note: "幼圆/丸ゴシック，柔和可爱（看设备是否自带）" },
+    { key: "mono",  name: "等宽数字", sample: "128 kcal", note: "界面字体不变，只让数字等宽对齐" }
+  ];
+  function fontOf(key) { for (var i = 0; i < FONTS.length; i++) if (FONTS[i].key === key) return FONTS[i]; return null; }
+  /* 字体只影响 <html data-font>，CSS 里用 html[data-font="x"] 覆盖 --font-ui 即可全局生效 */
+  function applyFont() {
+    var root = document.documentElement;
+    var key = data.font || DEFAULT_FONT;
+    if (key && key !== "sans" && fontOf(key)) root.setAttribute("data-font", key);
+    else root.removeAttribute("data-font");
+  }
+  function setFont(key) {
+    data.font = (fontOf(key) && key !== "sans") ? key : "sans";
+    save();
+    applyFont();
+    renderFontGrid();
+  }
+  function renderFontGrid() {
+    var grid = $("fontGrid");
+    if (!grid) return;
+    grid.innerHTML = "";
+    var cur = data.font || DEFAULT_FONT;
+    FONTS.forEach(function (f) {
+      var item = document.createElement("div");
+      item.className = "font-item" + (f.key === cur ? " sel" : "");
+      var s = document.createElement("div");
+      s.className = "font-sample sample-" + f.key;
+      s.textContent = f.sample;
+      var label = document.createElement("div");
+      label.className = "font-label";
+      label.textContent = f.name;
+      item.appendChild(s);
+      item.appendChild(label);
+      item.addEventListener("click", function () { setFont(f.key); });
+      grid.appendChild(item);
+    });
+    var note = $("fontNote");
+    if (note) {
+      var f0 = fontOf(cur) || FONTS[0];
+      note.textContent = f0.note;
+    }
   }
   function setTheme(key) {
     data.theme = (key === "plain") ? "plain" : key;
@@ -5442,7 +5751,7 @@ window.FIT_CLOUD_CONFIG = {
       grid.appendChild(item);
     });
   }
-  function openTheme() { renderThemeGrid(); updateWallpaperUI(); $("themeOverlay").hidden = false; }
+  function openTheme() { renderThemeGrid(); renderFontGrid(); updateWallpaperUI(); $("themeOverlay").hidden = false; }
   function closeTheme() { $("themeOverlay").hidden = true; }
   function updateWallpaperUI() {
     var clearBtn = $("wallpaperClear");
@@ -5638,6 +5947,20 @@ window.FIT_CLOUD_CONFIG = {
       leaveRoom: leaveRoom,
       renderRoom: renderRoom,
       showTab: showTab,
+      /* 头像（v5.1.3） */
+      AVATAR_EMOJIS: AVATAR_EMOJIS,
+      myAvatarEmoji: myAvatarEmoji,
+      myAvatarImage: myAvatarImage,
+      setAvatarEmoji: setAvatarEmoji,
+      setAvatarImage: setAvatarImage,
+      clearAvatarImage: clearAvatarImage,
+      renderAvatarPicker: renderAvatarPicker,
+      paintAvatar: paintAvatar,
+      /* 界面字体（v5.1.3） */
+      FONTS: FONTS,
+      applyFont: applyFont,
+      setFont: setFont,
+      renderFontGrid: renderFontGrid,
       /* 看板轮询（v5.1.2：PG 无 Realtime，靠定时拉取） */
       pollRoom: pollRoom,
       startRoomPolling: startRoomPolling,
@@ -5645,6 +5968,7 @@ window.FIT_CLOUD_CONFIG = {
       roomSignature: roomSignature,
       isPolling: function () { return !!roomPollTimer; },
       openAccount: openAccount,
+      openTheme: openTheme,
       sendAccountCode: sendAccountCode,
       verifyAccountCode: verifyAccountCode,
       /* 计时器（v5.1.0 timed 动作） */

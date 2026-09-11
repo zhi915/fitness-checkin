@@ -9,8 +9,8 @@
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="icon.svg" />
-  <link rel="stylesheet" href="css/style.css?v=1011" />
-  <link rel="stylesheet" href="css/theme.css?v=1011" />
+  <link rel="stylesheet" href="css/style.css?v=1012" />
+  <link rel="stylesheet" href="css/theme.css?v=1012" />
 </head>
 <body>
   <!-- 登录已移除（无登录版 v2.2.0）：打开即进入主界面 -->
@@ -181,7 +181,7 @@
           </div>
           <div class="settings-note">身体数据用于卡路里精确估算（身高/年龄/性别参与基础代谢计算），仅本地保存。</div>
           <button class="btn-ghost" id="editProfileBtn" style="margin-top:12px;width:100%">完善个人信息</button>
-          <button class="btn-ghost" id="themeBtn" style="margin-top:8px;width:100%">🎨 主题与壁纸</button>
+          <button class="btn-ghost" id="themeBtn" style="margin-top:8px;width:100%">🎨 主题 / 壁纸 / 字体</button>
         </div>
 
         <div class="danger-zone">
@@ -275,8 +275,8 @@
   <!-- 主题与壁纸 -->
   <div class="profile-overlay" id="themeOverlay" hidden>
     <div class="profile-card theme-card">
-      <div class="profile-title">主题与壁纸</div>
-      <div class="profile-sub">选一个主题，或上传自己的壁纸作为背景。</div>
+      <div class="profile-title">主题 · 壁纸 · 字体</div>
+      <div class="profile-sub">选一个主题，上传自己的壁纸，也可以换一套界面字体。</div>
 
       <div class="theme-grid" id="themeGrid"></div>
 
@@ -289,6 +289,10 @@
       </div>
       <div class="theme-wallpaper-name" id="wallpaperName"></div>
 
+      <div class="theme-section-title">界面字体</div>
+      <div class="font-grid" id="fontGrid"></div>
+      <div class="font-note" id="fontNote"></div>
+
       <button class="profile-save" id="themeSave">完成</button>
     </div>
   </div>
@@ -298,6 +302,18 @@
     <div class="profile-card">
       <div class="profile-title" id="accountTitle">账号</div>
       <div class="profile-sub" id="accountSub">—</div>
+
+      <!-- 头像：预设 emoji + 自定义图片（队友看板会同步显示） -->
+      <div class="avatar-block">
+        <div class="avatar-preview" id="avatarPreview">💪</div>
+        <div class="avatar-tip">选一个表情，或上传自己的图片</div>
+        <div class="avatar-grid" id="avatarGrid"></div>
+        <div class="avatar-actions">
+          <button class="btn-ghost" id="avatarUploadBtn" type="button">上传图片</button>
+          <button class="btn-ghost" id="avatarClearBtn" type="button" hidden>用回表情</button>
+        </div>
+        <input type="file" id="avatarFile" accept="image/*" hidden />
+      </div>
 
       <div class="profile-field">
         <label>邮箱</label>
@@ -527,10 +543,10 @@
   </svg>
 
   <!-- 云端（CloudBase）与组队领域层：未配置时全部为「纯本地模式」，不影响打卡 -->
-  <script src="js/cloud-config.js?v=1011"></script>
-  <script src="js/cloud.js?v=1011"></script>
-  <script src="js/social.js?v=1011"></script>
-  <script src="js/calc.js?v=1011"></script>
-  <script src="js/app.js?v=1011"></script>
+  <script src="js/cloud-config.js?v=1012"></script>
+  <script src="js/cloud.js?v=1012"></script>
+  <script src="js/social.js?v=1012"></script>
+  <script src="js/calc.js?v=1012"></script>
+  <script src="js/app.js?v=1012"></script>
 </body>
 </html>

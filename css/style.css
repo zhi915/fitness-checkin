@@ -19,17 +19,32 @@
   --shadow-sm: 0 1px 2px rgba(15,23,42,0.05);
   --shadow: 0 4px 14px rgba(37,99,235,0.10);
   --shadow-lg: 0 10px 30px rgba(37,99,235,0.16);
+  /* 界面字体栈（唯一来源，切换靠 html[data-font] 覆盖这一个变量） */
+  --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
 }
+
+/* 字体方案：与主题同思路，只改 <html data-font="…"> 一个属性即全局生效 */
+html[data-font="serif"] {
+  --font-ui: "Songti SC", "STSong", "Source Han Serif SC", "Noto Serif SC", "SimSun", Georgia, "Times New Roman", serif;
+}
+html[data-font="round"] {
+  --font-ui: "Hiragino Maru Gothic ProN", "Yuanti SC", "YouYuan", "HYQiHei", "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+/* 等宽数字：界面字体不变，只让数字按等宽对齐（卡路里 / 组数 / 日历日期不再跳动） */
+html[data-font="mono"] { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
 html, body {
   margin: 0; padding: 0;
   background: #E8EDF6;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  font-family: var(--font-ui);
   color: var(--text);
   -webkit-font-smoothing: antialiased;
 }
+
+/* 表单控件默认不继承字体，不写这条的话切字体时输入框/按钮会「纹丝不动」 */
+button, input, select, textarea { font-family: inherit; }
 
 #app {
   max-width: 480px;
@@ -644,6 +659,28 @@ html, body {
 .profile-ico svg { width: 28px; height: 28px; }
 .profile-title { font-size: 18px; font-weight: 700; color: var(--text); text-align: center; }
 .profile-sub { font-size: 12px; color: var(--text-sub); text-align: center; line-height: 1.5; margin-top: -6px; }
+
+/* ---------- 头像（emoji 预设 + 自定义图片） ---------- */
+.avatar-block { margin: 12px 0 6px; text-align: center; }
+.avatar-preview {
+  width: 68px; height: 68px; margin: 0 auto 8px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 34px; line-height: 1; background: var(--card-2, rgba(127,127,127,.14));
+  border: 2px solid var(--line); overflow: hidden;
+}
+.avatar-tip { font-size: 12px; color: var(--text-sub); margin-bottom: 8px; }
+.avatar-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin-bottom: 10px; }
+.avatar-opt {
+  font-size: 21px; line-height: 1; padding: 7px 0; border-radius: 10px;
+  border: 1.5px solid var(--line); background: transparent; cursor: pointer;
+}
+.avatar-opt.sel { border-color: var(--primary); background: var(--card-2, rgba(127,127,127,.14)); }
+.avatar-actions { display: flex; gap: 8px; justify-content: center; }
+.avatar-actions .btn-ghost { padding: 7px 14px; font-size: 13px; }
+/* 圆形头像（看板 / 队友卡 / 顶部账号入口）：有图片时由 img 撑满 */
+.avatar-img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; display: block; }
+.has-img { padding: 0 !important; overflow: hidden; background: none !important; }
+
 .profile-field { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .profile-field > label { font-size: 14px; color: var(--text-sub); font-weight: 600; white-space: nowrap; }
 .profile-field input {

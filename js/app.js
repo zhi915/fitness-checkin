@@ -1486,6 +1486,35 @@
     toast("数据已导出");
   }
 
+  /* 导入备份：写入 localStorage 后走标准 load()，复用全部旧版本迁移逻辑 */
+  function importData(file) {
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function () {
+      try {
+        var obj = JSON.parse(String(reader.result || ""));
+        if (!obj || typeof obj !== "object" || Array.isArray(obj)) throw new Error("不是有效的备份文件");
+        if (!obj.tasks && !obj.records && !obj.plan) throw new Error("文件里没有打卡数据");
+        if (!confirm("导入会覆盖这台设备上的现有数据，确定继续？")) return;
+        localStorage.setItem(DATA_KEY, JSON.stringify(obj));
+        load();                    // 归一化 + 旧数据迁移
+        ensurePlan(false);
+        save();
+        applyTheme();              // 主题与壁纸随备份恢复
+        renderAppTitle();
+        renderSceneSwitch();
+        renderGenderToggle();
+        refreshAll();
+        renderCalendar();
+        toast("数据已导入");
+      } catch (e) {
+        toast("导入失败：" + ((e && e.message) || "文件无法解析"));
+      }
+    };
+    reader.onerror = function () { toast("导入失败：读取文件出错"); };
+    reader.readAsText(file);
+  }
+
   /* ============================================================
      分步打卡向导（一次一个动作 + 滚轮调重量/组数/次数）
      ============================================================ */
@@ -2576,6 +2605,12 @@
     $("btnFinish").addEventListener("click", finishSheet);
     $("btnUndo").addEventListener("click", undoToday);
     $("exportBtn").addEventListener("click", exportData);
+    $("importBtn").addEventListener("click", function () { $("importFile").click(); });
+    $("importFile").addEventListener("change", function (e) {
+      var f = e.target.files && e.target.files[0];
+      importData(f);
+      e.target.value = "";   // 清空以便重复导入同一个文件
+    });
     $("resetBtn").addEventListener("click", function () {
       if (confirm("确定清空所有打卡数据？此操作不可恢复。")) {
         data = blankData(); ensurePlan(true); save(); refreshAll(); renderSceneSwitch(); renderGenderToggle(); toast("已清空");
@@ -3175,7 +3210,9 @@
       completeCurrent: completeCurrent,
       renderWizardStep: renderWizardStep,
       openWizard: openWizard,
-      closeWizard: closeWizard
+      closeWizard: closeWizard,
+      exportData: exportData,
+      importData: importData
     };
   } catch (e) {}
 

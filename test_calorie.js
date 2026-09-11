@@ -36,7 +36,7 @@ try {
   try { document.dispatchEvent(new window.Event("DOMContentLoaded")); } catch (e) {}
 } catch (e) { console.log("EVAL ERROR:", e.message); }
 
-ok("版本号 v5.1.1", (document.getElementById("appVersion").textContent || "").indexOf("5.1.1") !== -1);
+ok("版本号 v5.1.2", (document.getElementById("appVersion").textContent || "").indexOf("5.1.2") !== -1);
 
 // 1. 首页汇总卡有数值（今日任务做功法估算之和 > 0）
 const calSum = document.getElementById("calSumNum");

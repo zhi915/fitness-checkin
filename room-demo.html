@@ -2729,7 +2729,7 @@ try {
   ];
 
   /* ---------- 应用版本（主界面右上角标识，确认是否运行最新版） ---------- */
-  var APP_VERSION = "5.1.1";
+  var APP_VERSION = "5.1.2";
 
   /* ---------- 数据层（单机版：统一存储，无登录） ---------- */
   var DATA_KEY = "fitapp_data";
@@ -4787,10 +4787,57 @@ try {
       .catch(function (e) { toast("退出失败：" + cloudErr(e)); return false; });
   }
 
+  /* ---------- 组队看板自动刷新（轮询） ----------
+     CloudBase 的 PG 模式没有 Realtime 订阅，队友加入 / 打卡不会推送过来，
+     所以只能定时拉。要点：
+       · 只在「已进房 + 页面可见」时跑，后台标签页不空转；
+       · 数据没变化就不重绘 —— 重绘会重建 DOM，正在输入的内容会被清掉；
+       · 失败完全静默，不打断用户（下次轮询自然会恢复）。 */
+  var ROOM_POLL_MS = 20000;
+  var roomPollTimer = null;
+  var roomSigCache = "";
+  function roomSignature() {
+    var m = (cloud.members || []).map(function (x) {
+      return x.user_id + ":" + (x.nickname || "") + ":" + (x.emoji || "") + ":" + (x.streak || 0);
+    }).join("|");
+    var s = (cloud.summaries || []).map(function (r) {
+      return r.user_id + ":" + r.day + ":" + (r.checked ? 1 : 0) + ":" + (r.done_count || 0) + ":" + (r.kcal || 0);
+    }).join("|");
+    return m + "#" + s;
+  }
+  function pollRoom() {
+    if (!isCloudReady() || !cloud.room) return Promise.resolve(false);
+    if (typeof document !== "undefined" && document.hidden) return Promise.resolve(false);
+    if (cloud.syncing) return Promise.resolve(false);           // 正在上报，别并发
+    var before = roomSignature();
+    var prevCount = (cloud.members || []).length;
+    return loadRoomData().then(function () {
+      var after = roomSignature();
+      if (after === before) return false;
+      renderRoom();
+      var now = (cloud.members || []).length;
+      if (now > prevCount) toast("有队友加入了房间 👋");
+      return true;
+    }).catch(function () { return false; });
+  }
+  function startRoomPolling() {
+    if (roomPollTimer) return;
+    roomPollTimer = setInterval(function () { pollRoom(); }, ROOM_POLL_MS);
+  }
+  function stopRoomPolling() {
+    if (!roomPollTimer) return;
+    clearInterval(roomPollTimer);
+    roomPollTimer = null;
+  }
+
   /* ---------- 渲染：账号卡 ---------- */
   function isRoomTab() { var p = $("panel-room"); return !!(p && p.classList.contains("active")); }
   function isTodayTab() { var p = $("panel-today"); return !!(p && p.classList.contains("active")); }
-  function renderRoom() { renderRoomAccount(); renderRoomBody(); renderHeaderAccount(); if (isTodayTab()) renderTodayMates(); }
+  function renderRoom() {
+    /* 有房间就开轮询（退房 / 登出 / 降级后自动停），重复调用是安全的 */
+    if (isCloudReady() && cloud.room) startRoomPolling(); else stopRoomPolling();
+    renderRoomAccount(); renderRoomBody(); renderHeaderAccount(); if (isTodayTab()) renderTodayMates();
+  }
 
   /* 首页右上角账号入口 */
   function renderHeaderAccount() {
@@ -5302,6 +5349,11 @@ try {
     window.addEventListener("resize", function () {
       if ($("panel-stats").classList.contains("active")) renderStats();
     });
+    /* 回到前台（切回标签页 / 从后台唤醒）立刻拉一次看板：
+       后台期间轮询是停的，回来时数据往往已经过期了 */
+    document.addEventListener("visibilitychange", function () {
+      if (!document.hidden) pollRoom();
+    });
     /* 分步打卡向导 */
     $("wizDone").addEventListener("click", completeCurrent);
     $("wizNext").addEventListener("click", navigateNext);
@@ -5686,6 +5738,12 @@ try {
       leaveRoom: leaveRoom,
       renderRoom: renderRoom,
       showTab: showTab,
+      /* 看板轮询（v5.1.2：PG 无 Realtime，靠定时拉取） */
+      pollRoom: pollRoom,
+      startRoomPolling: startRoomPolling,
+      stopRoomPolling: stopRoomPolling,
+      roomSignature: roomSignature,
+      isPolling: function () { return !!roomPollTimer; },
       openAccount: openAccount,
       sendAccountCode: sendAccountCode,
       verifyAccountCode: verifyAccountCode,

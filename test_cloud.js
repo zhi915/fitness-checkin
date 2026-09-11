@@ -1,4 +1,4 @@
-/* v5.1.1 云端轻客户端单测——js/cloud.js（腾讯云开发 CloudBase 版）
+/* v5.1.2 云端轻客户端单测——js/cloud.js（腾讯云开发 CloudBase 版）
    通过注入 mock fetch / mock storage，把「认证 + PostgREST 请求」在 Node 里跑通，
    断言真实发出的 URL / 方法 / 请求头 / 请求体，以及会话的保存与刷新逻辑。
    （不联网：所有响应都是构造的 JSON。） */

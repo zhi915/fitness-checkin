@@ -1,4 +1,4 @@
-/* v5.1.0 组队页端到端验证（jsdom）
+/* v5.1.1 组队页端到端验证（jsdom）
    覆盖三种状态：
      A 未配置云端  → 纯本地模式，打卡完全不受影响
      B 已配置/已匿名登录/未加入房间 → 创建房间全流程
@@ -250,6 +250,48 @@ C.window.__fit.sendAccountCode();
 await tick(3);
 ok("E · 非法邮箱不发起请求", C.fetch.calls.length === before);
 ok("E · 弹出提示", cdoc.getElementById("toast").hidden === false);
+
+/* ==================== F. 建房时成员已入队（触发器兜底）不应报失败 ==================== */
+/* 线上真实情况：rooms 上的触发器 rooms_autoadd_owner 会在建房瞬间把房主写进
+   成员表，客户端随后那次 insert 必然撞主键（409 / 23505）。这不是失败，
+   必须继续走完流程 —— 否则用户看到「创建失败」，但房间其实已经建好了。 */
+function roomHandler(memberPost) {
+  return function (u, m) {
+    if (u.indexOf("/auth/v1/signin/anonymously") !== -1) return { body: sessionBody() };
+    if (u.indexOf("/v1/rdb/rest/profiles") !== -1) return { body: [{ id: MY_ID }] };
+    if (u.indexOf("/v1/rdb/rest/rooms") !== -1 && m === "POST") return { body: [createdRoom] };
+    if (u.indexOf("/v1/rdb/rest/room_members") !== -1 && m === "POST") return memberPost;
+    if (u.indexOf("/v1/rdb/rest/room_members") !== -1 && u.indexOf("select=user_id") !== -1) {
+      return { body: [{ user_id: MY_ID, joined_at: "2026-01-05", profiles: { nickname: "小明", emoji: "💪", streak: 5, total_days: 12 } }] };
+    }
+    if (u.indexOf("/v1/rdb/rest/room_members") !== -1) return { body: [] };
+    if (u.indexOf("/v1/rdb/rest/day_summaries") !== -1) return { body: [] };
+    return { status: 404, body: { message: "unhandled " + m + " " + u } };
+  };
+}
+var F = boot({ envId: "demo-env", accessKey: "k".repeat(40) }, roomHandler({
+  status: 409,
+  body: { code: "DATABASE_23505", message: 'duplicate key value violates unique constraint "room_members_pkey"' }
+}));
+await tick(40);
+ok("F · 云端已就绪", F.window.__fit.isCloudReady() === true);
+var fRes = await F.window.__fit.createRoom("触发器房间", 30);
+await tick(30);
+ok("F · 成员插入撞主键时仍返回创建成功", fRes === true);
+ok("F · 房间已写入 cloud.room", !!(F.window.__fit.cloud.room && F.window.__fit.cloud.room.id === "room-1"));
+ok("F · 提示里给出邀请码", F.document.getElementById("toast").textContent.indexOf("NEW123") !== -1);
+ok("F · 没有误报「创建失败」", F.document.getElementById("toast").textContent.indexOf("创建失败") === -1);
+
+/* 反例：同样是 409，但原因是外键（资料没推上去）→ 必须报出来，不能被当重复吞掉 */
+var F2 = boot({ envId: "demo-env", accessKey: "k".repeat(40) }, roomHandler({
+  status: 409,
+  body: { code: "DATABASE_23503", message: 'insert or update on table "room_members" violates foreign key constraint "room_members_user_id_fkey"' }
+}));
+await tick(40);
+var f2Res = await F2.window.__fit.createRoom("外键房间", 30);
+await tick(30);
+ok("F2 · 外键错误不能被当成重复忽略", f2Res === false);
+ok("F2 · 提示指向「资料还没建好」", F2.document.getElementById("toast").textContent.indexOf("资料还没建好") !== -1);
 
 console.log("\n结果: " + pass + " 通过, " + fail + " 失败");
 process.exit(fail ? 1 : 0);

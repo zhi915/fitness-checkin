@@ -129,7 +129,8 @@ async function scalar(db, sql, params) {
   let joined = null;
   try { joined = (await db.query("select * from public.join_room_by_code($1)", ["k7x2qm"])).rows[0]; }
   catch (e) { joined = { err: e.message }; }
-  ok("RPC 凭码入房成功（大小写不敏感）", !!joined && !joined.err && joined.code === "K7X2QM");
+  ok("RPC 凭码入房成功（大小写不敏感）", !!joined && !joined.err && joined.code === "K7X2QM",
+     joined && joined.err);
   ok("入房后 B 能看到 A 的摘要（组队可见性生效）",
      (await scalar(db, "select count(*) from public.day_summaries")) === 1);
   ok("入房后 B 能看到房间", (await scalar(db, "select count(*) from public.rooms")) === 1);

@@ -1,4 +1,4 @@
-/* v5.1.0 组队领域层单测——js/social.js 是纯函数模块（无 DOM / 无网络），
+/* v5.1.1 组队领域层单测——js/social.js 是纯函数模块（无 DOM / 无网络），
    可直接 require。覆盖：邀请码、日期区间、摘要行构造、集体进度、成员看板排序。 */
 const S = require("./js/social.js");
 

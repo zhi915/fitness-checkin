@@ -32,7 +32,7 @@ try {
   try { document.dispatchEvent(new window.Event("DOMContentLoaded")); } catch (e) {}
 } catch (e) { console.log("EVAL ERROR:", e.message); }
 
-ok("版本号 v5.1.0", (document.getElementById("appVersion").textContent || "").indexOf("5.1.0") !== -1);
+ok("版本号 v5.1.1", (document.getElementById("appVersion").textContent || "").indexOf("5.1.1") !== -1);
 const taskList = document.getElementById("taskList");
 const total = taskList.children.length;
 ok("自动排程产生任务", total > 0);

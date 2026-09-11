@@ -1643,7 +1643,7 @@ html[data-theme="warm"] .chip { background: rgba(52,42,82,0.68); color: var(--te
    注意：留空时组队页会显示「未配置」指引，不会报错、不影响打卡。
    ============================================================ */
 window.FIT_CLOUD_CONFIG = {
-  envId: "sports-d6gxbwqzaaabf04d5",  // CloudBase 环境 ID（也可直接粘完整域名，会被自动归一化）
+  envId: "",  // CloudBase 环境 ID（也可直接粘完整域名，会被自动归一化）
   accessKey: ""                        // 可选，Publishable Key；留空即可
 };
 
@@ -2629,7 +2629,7 @@ window.FIT_CLOUD_CONFIG = {
   ];
 
   /* ---------- 应用版本（主界面右上角标识，确认是否运行最新版） ---------- */
-  var APP_VERSION = "5.1.0";
+  var APP_VERSION = "5.1.1";
 
   /* ---------- 数据层（单机版：统一存储，无登录） ---------- */
   var DATA_KEY = "fitapp_data";
@@ -4433,9 +4433,21 @@ window.FIT_CLOUD_CONFIG = {
 
   function cloudOn() { return !!(CLOUD_ON && CLOUD && CLOUD.isConfigured()); }
   function isCloudReady() { return cloudOn() && cloud.ready && !!cloud.user; }
+  /* 唯一约束冲突（23505）：多半是「已经在里面了」，不算真失败。
+     ⚠️ CloudBase 把外键违规（23503）也包成 HTTP 409，所以不能只看状态码，
+        必须先排除外键，否则会把「资料没建好」误判成「重复」而悄悄吞掉。 */
+  function isDupErr(e) {
+    if (!e) return false;
+    var c = String(e.code || "");
+    var m = String(e.message || "");
+    if (/23503|foreign key/i.test(c + " " + m)) return false;
+    if (/23505|duplicate|unique/i.test(c + " " + m)) return true;
+    return e.status === 409;
+  }
   function cloudErr(e) {
     var msg = (e && e.message) ? e.message : "网络异常";
     var st = e && (e.status || e.statusCode);
+    var code = String((e && (e.code || e.error_code)) || "");
     if (st === 403) {
       return "403 来源被拒绝：请到云开发控制台 → 环境配置 → 安全来源，把本站域名加入安全域名";
     }
@@ -4443,6 +4455,19 @@ window.FIT_CLOUD_CONFIG = {
        拿不到状态码——按同一原因（安全来源白名单）给出可操作提示 */
     if (/failed to fetch|load failed|networkerror|network request failed|blocked by cors/i.test(msg)) {
       return "跨域请求被拒绝：请把本站域名加进云开发控制台 → 环境配置 → 安全来源的安全域名（约 1-2 分钟生效）";
+    }
+    /* CloudBase 把 PostgreSQL 的 SQLSTATE 包成 DATABASE_xxxxx，这里翻成中文可操作提示 */
+    if (/42501/.test(code) || /row-level security/i.test(msg)) {
+      return "数据库拒绝了该操作（RLS）：请在云开发控制台重跑一次建表脚本 cloudbase/schema.sql";
+    }
+    if (/23503/.test(code) || /foreign key/i.test(msg)) {
+      return "云端资料还没建好：请回到首页下拉刷新，看到「已同步」后再试";
+    }
+    if (/23505/.test(code) || /duplicate key/i.test(msg)) {
+      return "已经加入过了，刷新页面即可";
+    }
+    if (/42703|42P01|PGRST/.test(code)) {
+      return "云端表结构不完整：请在云开发控制台重跑一次 cloudbase/schema.sql";
     }
     return msg;
   }
@@ -4608,10 +4633,18 @@ window.FIT_CLOUD_CONFIG = {
   function createRoom(name, goalValue) {
     if (!isCloudReady()) { toast("正在连接云端，请稍候"); return Promise.resolve(false); }
     var goal = Math.max(1, parseInt(goalValue, 10) || 30);
-    return insertRoomWithCode(name, goal, 0).then(function (rows) {
+    /* 先补资料：rooms.owner 有指向 profiles(id) 的外键，
+       资料缺失时建房会直接报 23503。force=true 强制补一次，成本一次请求。 */
+    return pushProfile(true).then(function () {
+      return insertRoomWithCode(name, goal, 0);
+    }).then(function (rows) {
       var room = rows && rows[0];
       if (!room) throw new Error("创建房间失败");
+      /* 建房触发器 rooms_autoadd_owner 已经把房主写进成员表，
+         这里再插一次是给「没建触发器」的库兜底；撞主键说明已在房内，忽略即可。
+         ⚠️ 不能改用 upsert：成员表刻意不开 UPDATE 策略，merge-duplicates 会被 RLS 拒。 */
       return CLOUD.insert("room_members", [{ room_id: room.id, user_id: cloud.user.id }])
+        .catch(function (e) { if (!isDupErr(e)) throw e; return []; })
         .then(function () { return pushSummary(todayKey()); })
         .then(function () { cloud.room = room; return loadRoomData(); })
         .then(function () {
@@ -4627,16 +4660,20 @@ window.FIT_CLOUD_CONFIG = {
     if (!isCloudReady()) { toast("正在连接云端，请稍候"); return Promise.resolve(false); }
     var c = SOCIAL.normalizeCode(code);
     if (!SOCIAL.isValidCode(c)) { toast("邀请码是 6 位字母或数字"); return Promise.resolve(false); }
-    return CLOUD.rpc("join_room_by_code", { p_code: c }).then(function (rows) {
-      var room = rows && rows[0];
-      if (!room) throw new Error("房间不存在");
-      cloud.room = room;
-      return pushSummary(todayKey())
-        .then(loadRoomData)
-        .then(function () { renderRoom(); toast("已加入 " + room.name); return true; });
-    }).catch(function (e) {
-      toast("加入失败：" + cloudErr(e)); return false;
-    });
+    /* 同上：room_members.user_id 也有指向 profiles(id) 的外键，先确保资料存在 */
+    return pushProfile(true)
+      .then(function () { return CLOUD.rpc("join_room_by_code", { p_code: c }); })
+      .then(function (rows) {
+        var room = rows && rows[0];
+        if (!room) throw new Error("房间不存在");
+        cloud.room = room;
+        return pushSummary(todayKey())
+          .then(loadRoomData)
+          .then(function () { renderRoom(); toast("已加入 " + room.name); return true; });
+      })
+      .catch(function (e) {
+        toast("加入失败：" + cloudErr(e)); return false;
+      });
   }
   function leaveRoom() {
     if (!isCloudReady() || !cloud.room) return Promise.resolve(false);

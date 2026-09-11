@@ -109,7 +109,7 @@ ok(window.__fit.getData().appTitle === "不该被改", "未在编辑态时 blur 
 
   w2.eval(calcjs); w2.eval(appjs);
   const oldObj = JSON.parse(JSON.stringify(w2.__fit.blankData()));
-  delete oldObj.appTitle;                 // 模拟 v5.1.0 之前的旧数据
+  delete oldObj.appTitle;                 // 模拟 v5.1.1 之前的旧数据
   oldObj.username = "fairy";
   w2.localStorage.setItem("fitapp_data", JSON.stringify(oldObj));
   w2.eval(appjs);                         // 重新加载 → load() 读旧数据

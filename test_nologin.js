@@ -43,7 +43,7 @@ setTimeout(function () {
   assert(!!app, "主界面 #app 存在");
   assert(!/display\s*:\s*none/.test(app.getAttribute("style") || ""), "#app 没有 display:none（默认可见）");
   const ver = doc.getElementById("appVersion");
-  assert(ver && /5\.1\.0/.test(ver.textContent), "顶栏版本号显示 v5.1.0（实际：" + (ver && ver.textContent) + "）");
+  assert(ver && /5\.1\.1/.test(ver.textContent), "顶栏版本号显示 v5.1.1（实际：" + (ver && ver.textContent) + "）");
   const loadBtn = doc.getElementById("taskLoadBtn");
   assert(!!loadBtn, "「今日任务」标题右侧有「载入」按钮");
   assert(!doc.getElementById("recoBanner"), "旧推荐横幅已移除");

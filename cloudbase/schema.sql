@@ -188,6 +188,15 @@ begin
   v_uid := (select auth.uid());
   if v_uid is null or v_uid = '' then raise exception '请先登录'; end if;
 
+  /* room_members.user_id 有指向 profiles(id) 的外键。加入者可能还没推过资料
+     （例如刚匿名登录就输码进房），这里兜底建一条，避免 23503 外键违规。
+     security definer 下写入不受 RLS 影响，on conflict 保证幂等。
+     ⚠️ 必须写「on conflict do nothing」不指定列：本函数的 OUT 参数就叫 id，
+        写成 on conflict (id) 会被 plpgsql 判为 column reference "id" is ambiguous，
+        整个函数直接失效（PGlite 校验时抓到过）。 */
+  insert into public.profiles (id) values (v_uid)
+  on conflict do nothing;
+
   select * into r from public.rooms
    where upper(rooms.code) = upper(trim(p_code))
    limit 1;

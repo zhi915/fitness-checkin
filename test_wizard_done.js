@@ -48,7 +48,7 @@ const wizDoneView = document.getElementById("wizDoneView");
 const wizBody = document.getElementById("wizBody");
 const wizWizard = document.getElementById("wizard");
 
-ok("版本号 v5.1.0", (document.getElementById("appVersion").textContent || "").indexOf("5.1.0") !== -1);
+ok("版本号 v5.1.1", (document.getElementById("appVersion").textContent || "").indexOf("5.1.1") !== -1);
 
 /* 1. 自动排程产生任务（周一训练日） */
 const before = document.getElementById("taskList").children.length;

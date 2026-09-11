@@ -38,7 +38,7 @@ try {
 } catch (e) { console.log("EVAL ERROR:", e.message); }
 
 /* ---------- 1. 版本 & 蓝白主题 ---------- */
-ok("版本号 v5.1.0", (document.getElementById("appVersion").textContent || "").indexOf("5.1.0") !== -1);
+ok("版本号 v5.1.1", (document.getElementById("appVersion").textContent || "").indexOf("5.1.1") !== -1);
 ok("CSS 主色为蓝 #2563EB", css.indexOf("--primary: #2563EB") !== -1);
 ok("CSS 无残留 teal #0F6E56", css.indexOf("#0F6E56") === -1);
 ok("CSS 无残留 teal #11998e", css.indexOf("#11998e") === -1);

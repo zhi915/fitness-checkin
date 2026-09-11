@@ -5,7 +5,11 @@ const fs = require("fs");
 let html = fs.readFileSync("index.html", "utf8");
 const css = fs.readFileSync("css/style.css", "utf8");
 const themeCss = fs.readFileSync("css/theme.css", "utf8");
+const calc = fs.readFileSync("js/calc.js", "utf8");
 const js = fs.readFileSync("js/app.js", "utf8");
+const cloudCfg = fs.readFileSync("js/cloud-config.js", "utf8");
+const cloud = fs.readFileSync("js/cloud.js", "utf8");
+const social = fs.readFileSync("js/social.js", "utf8");
 
 // 内置壁纸内联为 base64
 let themeCssInline = themeCss;
@@ -25,6 +29,22 @@ try {
   const wpB64 = "data:image/jpeg;base64," + wpBuf.toString("base64");
   jsInline = js.replace('var DEFAULT_WALLPAPER = "assets/wallpaper-snow.jpg";', 'var DEFAULT_WALLPAPER = "' + wpB64 + '";');
 } catch (e) {}
+// 云端与组队：
+//  - 默认（预览用）强制注入「空配置」→ 组队页显示「未配置云端」的接入指引。
+//    刻意不内联真实 cloud-config.js：预览页从 file:// 或沙箱源发起请求必被 CORS 拦，
+//    带真实配置只会看到连接错误，不如保持确定性的引导页。
+//  - 传 REALCLOUD=1 时注入真实配置（envId 等原样内联），用于「接真云端看实际功能」的预览。
+//    前提：预览面板以 http://127.0.0.1 源提供（CloudBase 网关会回显该 Origin，CORS 放行）；
+//    注意：若用户把文件另存为 file:// 打开则会被 403，需走预览面板或本地 http 服务。
+const useRealCloud = process.env.REALCLOUD === "1";
+const previewCfg = useRealCloud
+  ? cloudCfg
+  : cloudCfg.replace(/envId:\s*"[^"]*"/, 'envId: ""')
+            .replace(/accessKey:\s*"[^"]*"/, 'accessKey: ""');
+html = html.replace(/<script src="js\/cloud-config\.js[^>]*><\/script>/, "<script>\n" + previewCfg + "\n</script>");
+html = html.replace(/<script src="js\/cloud\.js[^>]*><\/script>/, "<script>\n" + cloud + "\n</script>");
+html = html.replace(/<script src="js\/social\.js[^>]*><\/script>/, "<script>\n" + social + "\n</script>");
+html = html.replace(/<script src="js\/calc\.js[^>]*><\/script>/, "<script>\n" + calc + "\n</script>");
 html = html.replace(/<script src="js\/app\.js[^>]*><\/script>/, "<script>\n" + jsInline + "\n</script>");
 // 去掉 manifest / icon 等可能在 file:// 下报错的外部引用（预览用，不影响正式版）
 html = html.replace(/<link rel="manifest"[^>]*>/, "");

@@ -1,4 +1,4 @@
-/* 端到端验证：v3.0.10 第一批改造
+/* 端到端验证：v4.0.0 第一批改造
    - 蓝白主题（CSS 变量 + 主色 #2563EB）
    - 动作数据库结构化：数量 >= 110、含 scenes/weighted/icon 字段
    - 场景切换（居家/健身房）：切换后动作库按场景过滤
@@ -10,6 +10,7 @@ const fs = require("fs");
 
 const html = fs.readFileSync("index.html", "utf8").replace(/<link rel="stylesheet"[^>]*>/g, "");
 const appjs = fs.readFileSync("js/app.js", "utf8");
+const calcjs = fs.readFileSync("js/calc.js", "utf8");
 const css = fs.readFileSync("css/style.css", "utf8");
 
 const dom = new JSDOM(html, { runScripts: "outside-only", url: "http://localhost:8080/" });
@@ -32,12 +33,12 @@ function ok(name, cond) {
 }
 
 try {
-  window.eval(appjs);
+  window.eval(calcjs); window.eval(appjs);
   try { document.dispatchEvent(new window.Event("DOMContentLoaded")); } catch (e) {}
 } catch (e) { console.log("EVAL ERROR:", e.message); }
 
 /* ---------- 1. 版本 & 蓝白主题 ---------- */
-ok("版本号 v3.0.10", (document.getElementById("appVersion").textContent || "").indexOf("3.0.10") !== -1);
+ok("版本号 v5.1.0", (document.getElementById("appVersion").textContent || "").indexOf("5.1.0") !== -1);
 ok("CSS 主色为蓝 #2563EB", css.indexOf("--primary: #2563EB") !== -1);
 ok("CSS 无残留 teal #0F6E56", css.indexOf("#0F6E56") === -1);
 ok("CSS 无残留 teal #11998e", css.indexOf("#11998e") === -1);

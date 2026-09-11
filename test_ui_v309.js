@@ -1,4 +1,4 @@
-/* 端到端验证：v3.0.10 UI 调整
+/* 端到端验证：v4.0.0 UI 调整
    - 顶栏改为圆角悬浮卡
    - 「今日任务」标题右侧小「载入」按钮（原「推荐训练」横幅已移除）
    - 当前动作卡布局不再拥挤（状态徽标移到头部行，操作行只留 更换/删除）
@@ -10,6 +10,7 @@ const fs = require("fs");
 const rawHtml = fs.readFileSync("index.html", "utf8");
 const html = rawHtml.replace(/<link rel="stylesheet"[^>]*>/g, "");
 const appjs = fs.readFileSync("js/app.js", "utf8");
+const calcjs = fs.readFileSync("js/calc.js", "utf8");
 const css = fs.readFileSync("css/style.css", "utf8");
 
 const dom = new JSDOM(html, { runScripts: "outside-only", url: "http://localhost:8080/" });
@@ -26,7 +27,7 @@ window.requestAnimationFrame = function () { return 0; };
 let pass = 0, fail = 0;
 function ok(name, cond) { if (cond) { pass++; console.log("✓ " + name); } else { fail++; console.log("✗ " + name); } }
 
-window.eval(appjs);
+window.eval(calcjs); window.eval(appjs);
 try { document.dispatchEvent(new window.Event("DOMContentLoaded")); } catch (e) { console.log("EVAL ERROR:", e.message); }
 
 /* ---------- 1. 顶栏：圆角悬浮卡（静态 CSS） ---------- */

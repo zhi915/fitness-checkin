@@ -4,6 +4,7 @@ const fs = require("fs");
 
 const html = fs.readFileSync("index.html", "utf8").replace(/<link rel="stylesheet"[^>]*>/g, "");
 const appjs = fs.readFileSync("js/app.js", "utf8");
+const calcjs = fs.readFileSync("js/calc.js", "utf8");
 
 const dom = new JSDOM(html, { runScripts: "outside-only", url: "http://localhost:8080/" });
 const { window } = dom;
@@ -19,7 +20,7 @@ let pass = 0, fail = 0;
 function ok(name, cond) { if (cond) { pass++; console.log("✓ " + name); } else { fail++; console.log("✗ " + name); } }
 const $ = (id) => document.getElementById(id);
 
-try { window.eval(appjs); document.dispatchEvent(new window.Event("DOMContentLoaded")); }
+try { window.eval(calcjs); window.eval(appjs); document.dispatchEvent(new window.Event("DOMContentLoaded")); }
 catch (e) { console.log("EVAL ERROR:", e.message); }
 
 function setWheel(wheelId, idx) {

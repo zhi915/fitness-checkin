@@ -5,6 +5,7 @@ const fs = require("fs");
 const rawHtml = fs.readFileSync("index.html", "utf8");
 const html = rawHtml.replace(/<link rel="stylesheet"[^>]*>/g, "");
 const appjs = fs.readFileSync("js/app.js", "utf8");
+const calcjs = fs.readFileSync("js/calc.js", "utf8");
 const themeCss = fs.readFileSync("css/theme.css", "utf8");
 
 function boot(preload, stubTimeout) {
@@ -40,7 +41,7 @@ function boot(preload, stubTimeout) {
     };
   }
   if (preload) window.localStorage.setItem("fitapp_data", JSON.stringify(preload));
-  window.eval(appjs);
+  window.eval(calcjs); window.eval(appjs);
   window.document.dispatchEvent(new window.Event("DOMContentLoaded"));
   return window;
 }

@@ -9,8 +9,8 @@
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="icon.svg" />
-  <link rel="stylesheet" href="css/style.css?v=700" />
-  <link rel="stylesheet" href="css/theme.css?v=700" />
+  <link rel="stylesheet" href="css/style.css?v=1007" />
+  <link rel="stylesheet" href="css/theme.css?v=1007" />
 </head>
 <body>
   <!-- 登录已移除（无登录版 v2.2.0）：打开即进入主界面 -->
@@ -20,16 +20,13 @@
       <div class="header-top">
         <div class="header-titles">
           <div class="header-sub" id="headerDate">—</div>
-          <div class="header-title">健身打卡</div>
+          <div class="header-title" id="headerTitle" role="button" title="点击修改标题">健身打卡</div>
+          <input type="text" id="headerTitleEdit" class="header-title-edit" maxlength="12" aria-label="应用标题" autocomplete="off" />
         </div>
         <div class="header-user">
           <span class="app-version" id="appVersion" style="font-size:11px;opacity:0.7"></span>
+          <button class="header-account-btn" id="headerAccountBtn" title="账号">👤</button>
         </div>
-      </div>
-      <!-- 场景切换：居家 / 健身房（影响动作库与推荐） -->
-      <div class="scene-switch" id="sceneSwitch">
-        <button class="scene-btn" data-scene="home"><span class="scene-ico">🏠</span>居家</button>
-        <button class="scene-btn" data-scene="gym"><span class="scene-ico">🏢</span>健身房</button>
       </div>
     </header>
 
@@ -55,6 +52,9 @@
           </button>
           <div class="hero-hint" id="heroHint">点击按钮，记录今天的坚持</div>
         </div>
+
+        <!-- 队友今日打卡(有云房间时渲染) -->
+        <div class="today-mates" id="todayMates" hidden></div>
 
         <div class="cal-summary" id="calSummary">
           <div class="cal-ring-wrap">
@@ -156,6 +156,10 @@
               <input type="text" id="inpName" maxlength="12" placeholder="怎么称呼你？" />
             </div>
             <div class="settings-row">
+              <label>应用标题</label>
+              <input type="text" id="inpAppTitle" maxlength="12" placeholder="健身打卡" />
+            </div>
+            <div class="settings-row">
               <label>体重 (kg)</label>
               <input type="number" id="inpWeight" inputmode="decimal" min="20" max="250" step="0.5" />
             </div>
@@ -188,9 +192,20 @@
 
       <!-- 计划 -->
       <section class="tab-panel" id="panel-plan">
+        <!-- 场景切换：居家 / 健身房（影响动作库与推荐） -->
+        <div class="scene-switch" id="sceneSwitch">
+          <button class="scene-btn" data-scene="home"><span class="scene-ico">🏠</span>居家</button>
+          <button class="scene-btn" data-scene="gym"><span class="scene-ico">🏢</span>健身房</button>
+        </div>
         <div class="plan-intro" id="planIntro"></div>
         <div class="plan-list" id="planList"></div>
         <div class="plan-rest" id="planRest"></div>
+      </section>
+
+      <!-- 组队（云端）：未配置 / 未加入 / 已加入 三态由 JS 渲染 -->
+      <section class="tab-panel" id="panel-room">
+        <div class="room-account" id="roomAccount"></div>
+        <div class="room-body" id="roomBody"></div>
       </section>
     </main>
 
@@ -206,6 +221,9 @@
       </button>
       <button class="nav-btn" data-tab="plan">
         <span class="nav-ico">📋</span><span class="nav-txt">计划</span>
+      </button>
+      <button class="nav-btn" data-tab="room">
+        <span class="nav-ico">🤝</span><span class="nav-txt">组队</span>
       </button>
     </nav>
   </div>
@@ -273,6 +291,28 @@
     </div>
   </div>
 
+  <!-- 账号与邮箱绑定（组队页触发） -->
+  <div class="profile-overlay" id="accountOverlay" hidden>
+    <div class="profile-card">
+      <div class="profile-title" id="accountTitle">账号</div>
+      <div class="profile-sub" id="accountSub">—</div>
+
+      <div class="profile-field">
+        <label>邮箱</label>
+        <input type="email" id="accountEmail" placeholder="you@example.com" autocomplete="email" />
+      </div>
+
+      <div class="profile-field" id="accountCodeField" hidden>
+        <label>验证码</label>
+        <input type="text" id="accountCode" inputmode="numeric" maxlength="6" placeholder="邮件里的 6 位数字" autocomplete="one-time-code" />
+      </div>
+
+      <button class="profile-save" id="accountSendBtn">发送验证码</button>
+      <button class="profile-save" id="accountVerifyBtn" hidden>确认</button>
+      <button class="profile-skip" id="accountClose">关闭</button>
+    </div>
+  </div>
+
   <!-- 分步打卡向导（点击「今日打卡」进入） -->
   <div class="wizard" id="wizard" hidden>
     <div class="wiz-top">
@@ -283,7 +323,22 @@
     <div class="wiz-body" id="wizBody">
       <div class="wiz-action-ico" id="wizActionIco"></div>
       <div class="wiz-action-name" id="wizActionName"></div>
-      <div class="wiz-action-meta" id="wizActionMeta"></div>
+      <!-- 计时器：仅 timed 动作显示（非 timed 隐藏）；点圆圈开始/暂停 -->
+      <div class="wiz-timer-inline" id="wizTimerBox" hidden>
+        <div class="wiz-timer-ring" id="wizTimerRing" role="button" tabindex="0" aria-label="点击开始或暂停计时">
+          <svg viewBox="0 0 120 120" aria-hidden="true">
+            <circle class="wiz-timer-track" cx="60" cy="60" r="52"></circle>
+            <circle class="wiz-timer-bar" id="wizTimerBar" cx="60" cy="60" r="52"></circle>
+          </svg>
+          <div class="wiz-timer-text">
+            <div class="wiz-timer-num" id="wizTimerNum">00:00</div>
+            <div class="wiz-timer-lbl" id="wizTimerLbl">点击圆圈开始</div>
+          </div>
+        </div>
+        <div class="wiz-timer-actions">
+          <button class="wiz-timer-btn ghost" id="wizTimerReset" type="button">重置</button>
+        </div>
+      </div>
       <div class="wiz-wheels" id="wizWheels">
         <div class="wheel" id="wheelW"><div class="wheel-items" id="wheelItemsW"></div></div>
         <div class="wheel" id="wheelS"><div class="wheel-items" id="wheelItemsS"></div></div>
@@ -469,6 +524,11 @@
     </defs>
   </svg>
 
-  <script src="js/app.js?v=700"></script>
+  <!-- 云端（CloudBase）与组队领域层：未配置时全部为「纯本地模式」，不影响打卡 -->
+  <script src="js/cloud-config.js?v=1007"></script>
+  <script src="js/cloud.js?v=1007"></script>
+  <script src="js/social.js?v=1007"></script>
+  <script src="js/calc.js?v=1007"></script>
+  <script src="js/app.js?v=1007"></script>
 </body>
 </html>

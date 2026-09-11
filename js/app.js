@@ -2,6 +2,13 @@
   (function () {
   "use strict";
 
+  /* 卡路里纯算法模块（js/calc.js，先于本文件加载）：纯函数，便于单测与集中调参 */
+  var CALC = (typeof window !== "undefined" && window.FitCalc) ? window.FitCalc : null;
+  /* 云端（CloudBase 轻客户端）与组队领域层（先于本文件加载）；缺失时自动降级为纯本地模式 */
+  var CLOUD = (typeof window !== "undefined" && window.FitCloud) ? window.FitCloud : null;
+  var SOCIAL = (typeof window !== "undefined" && window.FitSocial) ? window.FitSocial : null;
+  var CLOUD_CFG = (typeof window !== "undefined" && window.FIT_CLOUD_CONFIG) ? window.FIT_CLOUD_CONFIG : null;
+
   /* ============================================================
      运动类型（有氧 / 球类 / 游泳 等，MET 用于卡路里估算）
      ============================================================ */
@@ -259,7 +266,7 @@
   ];
 
   /* ---------- 应用版本（主界面右上角标识，确认是否运行最新版） ---------- */
-  var APP_VERSION = "3.0.10";
+  var APP_VERSION = "5.1.0";
 
   /* ---------- 数据层（单机版：统一存储，无登录） ---------- */
   var DATA_KEY = "fitapp_data";
@@ -267,10 +274,10 @@
   var DEFAULT_HEIGHT = 180;  // 默认身高(cm)
   var DEFAULT_AGE = 25;      // 默认年龄
   var currentUser = "我";   // 单机模式内部标记，无登录
-  /* 单机数据模型（v3.0 重构：checkedIn 由动作完成度派生，不再手动写状态位） */
+  /* 单机数据模型（v4.0.0：无 checkedIn 状态位——「是否已打卡」由 tasks 完成度 + confirmed 派生） */
   function blankData() {
     return {
-      records: {},       // 每日记录 { date, checkedIn, exercises[], actions[] }
+      records: {},       // 每日记录 { date, confirmed, exercises[] }（actions 已改为派生，不再持久化）
       tasks: {},         // 每日任务
       plan: null,
       recDismiss: {},
@@ -281,6 +288,7 @@
       gender: "male",    // male | female
       scene: "home",     // home | gym ：当前训练场景
       username: "",      // 用户名（用于首页问候等个性化称呼）
+      appTitle: "健身打卡", // 首页 header 标题（统计页设置可改）
       theme: "snow",     // 主题 key（空或 plain = 蓝白；night/snow/neon/warm）；默认「雪光柔白」
       wallpaper: "",     // 自定义壁纸 dataURL（空则用内置壁纸）
       profileDone: false // 是否已确认过「默认信息」（首次引导完成后置 true）
@@ -305,13 +313,31 @@
       if (data.gender !== "male" && data.gender !== "female") data.gender = "male";
       if (data.scene !== "home" && data.scene !== "gym") data.scene = "home";
       if (typeof data.username !== "string") data.username = "";
+      if (typeof data.appTitle !== "string" || !data.appTitle) data.appTitle = "健身打卡";
       if (typeof data.theme !== "string") data.theme = "";
       if (typeof data.wallpaper !== "string") data.wallpaper = "";
       if (typeof data.profileDone !== "boolean") data.profileDone = false;
+      /* v4.0.0 打卡逻辑重构 · 旧数据迁移：
+         把旧的 checkedIn 状态位归一为 confirmed（派生层唯一保留的显式确认标志），
+         并规范 tasks/records 结构，保证「单一事实源」成立。 */
+      Object.keys(data.records).forEach(function (k) {
+        var rec = data.records[k];
+        if (!rec) return;
+        if (typeof rec.confirmed !== "boolean") rec.confirmed = !!rec.checkedIn;
+        delete rec.checkedIn;
+        if (!rec.exercises) rec.exercises = [];
+      });
+      Object.keys(data.tasks).forEach(function (k) {
+        if (!Array.isArray(data.tasks[k])) data.tasks[k] = [];
+        data.tasks[k].forEach(function (t) { t.done = !!t.done; });
+      });
     } catch (e) { data = blankData(); }
   }
   function save() {
     try { localStorage.setItem(DATA_KEY, JSON.stringify(data)); } catch (e) {}
+    /* 本地写完立刻排队上报「当日摘要」（防抖；未配置云端 / 未登录时为空操作）。
+       顺序很重要：本地存储是唯一事实源，云端只是它的投影，因此永远先落本地。 */
+    queueSync();
   }
 
   /* ---------- 账户与鉴权（无登录版 v2.2.0 已移除） ---------- */
@@ -344,21 +370,71 @@
   /* ---------- 记录读写 ---------- */
   function getRecord(k) { return data.records[k]; }
   function ensureRecord(k) {
-    if (!data.records[k]) data.records[k] = { date: k, checkedIn: false, exercises: [] };
-    return data.records[k];
+    if (!data.records[k]) data.records[k] = { date: k, confirmed: false, exercises: [] };
+    var r = data.records[k];
+    if (typeof r.confirmed !== "boolean") r.confirmed = !!r.checkedIn;  // 旧数据迁移
+    if (!r.exercises) r.exercises = [];
+    return r;
   }
   function dayDuration(k) {
-    var r = getRecord(k); if (!r) return 0;
+    var r = getRecord(k); if (!r || !r.exercises) return 0;
     return r.exercises.reduce(function (s, e) { return s + (Number(e.duration) || 0); }, 0);
   }
-  function isChecked(k) {
-    var r = getRecord(k); return !!(r && r.checkedIn);
+
+  /* ============================================================
+     派生层（v4.0.0 打卡逻辑重构）
+     ------------------------------------------------------------
+     单一事实源：
+       · data.tasks[date]            —— 当天动作清单（每项含 done 与重量/组数/次数）
+       · data.records[date].exercises —— 当天「运动记录」（有氧/球类/游泳）
+     其它一切状态（是否已打卡 / 动作明细 / 完成进度）都由以上**派生**，不再单独存状态位。
+     规则：有任务 → 必须全部完成才算已打卡；无任务（休息日）→ 用户确认过或记录过运动即算已打卡。
+     ============================================================ */
+  function dayActions(k) {
+    var tasks = data.tasks[k] || [];
+    if (tasks.length) {
+      return tasks.map(function (t) {
+        return { text: t.text, w: t.w, s: t.s, r: t.r, done: !!t.done };
+      });
+    }
+    /* 兼容旧数据：无任务但历史上写过动作明细 */
+    var r = getRecord(k);
+    return (r && r.actions) ? r.actions : [];
   }
+
+  function deriveDay(k) {
+    var tasks = data.tasks[k] || [];
+    var total = tasks.length;
+    var doneCount = tasks.filter(function (t) { return t.done; }).length;
+    var allDone = total > 0 && doneCount === total;
+    var rec = getRecord(k);
+    var exercises = (rec && rec.exercises) ? rec.exercises : [];
+    var confirmed = !!(rec && rec.confirmed);
+    var checked = (total > 0) ? allDone : (confirmed || exercises.length > 0);
+    return {
+      tasks: tasks,
+      total: total,
+      doneCount: doneCount,
+      pending: total - doneCount,
+      allDone: allDone,
+      checked: checked,
+      confirmed: confirmed,
+      exercises: exercises,
+      actions: dayActions(k)
+    };
+  }
+
+  /* 是否已打卡：完全派生 */
+  function isChecked(k) { return deriveDay(k).checked; }
 
   /* ---------- 统计 ---------- */
   function computeStreaks() {
-    var keys = Object.keys(data.records)
-      .filter(function (k) { return data.records[k].checkedIn; })
+    /* 已打卡日期集合：records ∪ tasks —— checked 由派生层计算，可能没有对应 record 实体 */
+    var allKeys = {};
+    Object.keys(data.records).forEach(function (k) { allKeys[k] = 1; });
+    Object.keys(data.tasks).forEach(function (k) { allKeys[k] = 1; });
+    var keys = Object.keys(allKeys)
+      .filter(function (k) { return isChecked(k); })
       .sort();
     var total = keys.length, longest = 0, cur = 0, prev = null;
     keys.forEach(function (k) {
@@ -382,6 +458,7 @@
     var dur = 0, cal = 0;
     Object.keys(data.records).forEach(function (k) {
       var r = data.records[k];
+      if (!r || !r.exercises) return;
       r.exercises.forEach(function (e) {
         dur += Number(e.duration) || 0;
         cal += Number(e.calories) || 0;
@@ -441,18 +518,20 @@
     renderTasks();
     renderTodayActions();
     renderCalSummary();
+    renderTodayMates();
   }
 
   /* 今日动作记录：把今天做过的动作（含重量/组数/次数）展示出来 */
   function renderTodayActions() {
     var tk = todayKey();
-    var r = getRecord(tk);
+    /* 动作明细改为派生（来源 data.tasks[tk]），不再是打卡时写入的镜像 —— 永远与任务列表一致 */
+    var actions = dayActions(tk);
     var box = $("todayActions");
     var title = $("todayActionsTitle");
     box.innerHTML = "";
-    if (!r || !r.actions || !r.actions.length) { title.hidden = true; return; }
+    if (!actions.length) { title.hidden = true; return; }
     title.hidden = false;
-    r.actions.forEach(function (a) { box.appendChild(actionRow(a)); });
+    actions.forEach(function (a) { box.appendChild(actionRow(a)); });
   }
   /* 动作记录行（打卡记录里复用） */
   function actionRow(a) {
@@ -479,9 +558,8 @@
     getTasks(today).forEach(function (t) { recent[t.text.split(" ")[0]] = 2; }); // 今天已排的强排除
     var days = lastNDays(14);
     days.forEach(function (k) {
-      var r = data.records[k];
-      if (!r) return;
-      if (r.actions) r.actions.forEach(function (a) { recent[a.text.split(" ")[0]] = 1; });
+      var acts = dayActions(k);
+      acts.forEach(function (a) { recent[String(a.text || "").split(" ")[0]] = 1; });
     });
     /* 部位轮换：优先选择近 14 天未练部位的动作 */
     var byPart = {};
@@ -716,7 +794,6 @@
     text = (text || "").trim();
     if (!text) { toast("请输入动作内容"); return; }
     getTasks(todayKey()).push({ id: "t" + Date.now() + Math.floor(Math.random() * 1000), text: text, done: false, w: "", s: "", r: "" });
-    syncCheckin();   // 新增动作必为未完成 -> 若有“已打卡”则立即取消
     save();
     refreshAll();
   }
@@ -731,24 +808,11 @@
   function deleteTask(id) {
     var tk = todayKey();
     data.tasks[tk] = getTasks(tk).filter(function (t) { return t.id !== id; });
-    syncCheckin();   // 删除后若仍有未完成项 -> 取消“已完成”
     save();
     refreshAll();
   }
-  /* 今日任务发生变化（新增/删除/完成动作）后：只要还存在「未完成」的动作，
-     且此前已处于“已打卡”状态，则强制取消「今日打卡完成」并同步首页动作记录——
-     绝不允许“没做完却显示已完成”。其它情况（全部做完 / 无任务休息日）交给 finishWizard / finishSheet。 */
-  function syncCheckin() {
-    var tk = todayKey();
-    var tasks = getTasks(tk);
-    if (tasks.some(function (t) { return !t.done; })) {
-      var rec = ensureRecord(tk);
-      if (rec.checkedIn) {
-        rec.checkedIn = false;
-        rec.actions = tasks.map(function (t) { return { text: t.text, w: t.w, s: t.s, r: t.r, done: t.done }; });
-      }
-    }
-  }
+  /* 注：v4.0.0 起已删除 syncCheckin()——「是否已打卡」由 deriveDay() 纯派生，
+     tasks 一变化（新增/删除/完成）状态即自动一致，无需任何手工状态回写。 */
 
   /* ---------- 更换动作 ---------- */
   var replaceTargetId = null;
@@ -866,7 +930,6 @@
   function addExerciseFromLib(a) {
     var t = (a && typeof a === "object") ? taskFromExercise(a) : buildTaskFromPlanItem(a);
     getTasks(todayKey()).push(t);
-    syncCheckin();   // 新增动作必为未完成 -> 若有“已打卡”则立即取消
     save();
     refreshAll();
     toast("已添加：" + t.text);
@@ -917,8 +980,8 @@
     title.textContent = humanDate(k) + " 详情";
     var box = $("dayDetail");
     box.innerHTML = "";
-    var r = getRecord(k);
-    if (!r || (!r.checkedIn && r.exercises.length === 0)) {
+    var d = deriveDay(k);   // 唯一派生入口：checked / exercises / actions 全部来自这里
+    if (!d.checked && d.exercises.length === 0 && d.actions.length === 0) {
       var e = document.createElement("div");
       e.className = "day-empty";
       e.textContent = "这一天没有打卡记录";
@@ -928,19 +991,19 @@
     var head = document.createElement("div");
     head.className = "day-row";
     var dayCal = dayCalorie(k);
-    head.innerHTML = '<div class="ex-emoji">' + (isChecked(k) ? "✅" : "📝") + '</div>' +
-      '<div class="ex-main"><div class="ex-name">' + (isChecked(k) ? "已打卡" : "未打卡") +
-      '</div><div class="ex-meta">共 ' + r.exercises.length + ' 项 · ' + dayDuration(k) + ' 分钟' +
+    head.innerHTML = '<div class="ex-emoji">' + (d.checked ? "✅" : "📝") + '</div>' +
+      '<div class="ex-main"><div class="ex-name">' + (d.checked ? "已打卡" : "未打卡") +
+      '</div><div class="ex-meta">共 ' + d.exercises.length + ' 项 · ' + dayDuration(k) + ' 分钟' +
       (dayCal ? ' · 约 ' + dayCal + ' 千卡' : '') + '</div></div>';
     box.appendChild(head);
-    r.exercises.forEach(function (ex) { box.appendChild(exRow(ex)); });
-    /* 今日做过的动作内容（重量/组数/次数） */
-    if (r.actions && r.actions.length) {
+    d.exercises.forEach(function (ex) { box.appendChild(exRow(ex)); });
+    /* 当日做过的动作内容（重量/组数/次数） */
+    if (d.actions.length) {
       var aHead = document.createElement("div");
       aHead.className = "day-row day-actions-head";
       aHead.innerHTML = '<div class="ex-main"><div class="ex-name">今日动作</div></div>';
       box.appendChild(aHead);
-      r.actions.forEach(function (a) { box.appendChild(actionRow(a)); });
+      d.actions.forEach(function (a) { box.appendChild(actionRow(a)); });
     }
   }
 
@@ -1048,8 +1111,8 @@
     renderSportList();
     updateCalEstimate();
     renderEditList();
-    var r = getRecord(k);
-    $("btnUndo").hidden = !(r && r.checkedIn);
+    /* 撤销按钮：仅在「已打卡」时出现（派生自任务完成度 + confirmed） */
+    $("btnUndo").hidden = !deriveDay(k).checked;
     $("btnFinish").textContent = (k === todayKey()) ? "完成打卡" : "保存";
     $("sheetOverlay").hidden = false;
   }
@@ -1076,28 +1139,28 @@
 
   function finishSheet() {
     var rec = ensureRecord(editDate);
-    if (editDate === todayKey()) {
-      rec.checkedIn = true;
-      /* 把今天做过的动作内容（含重量/组数/次数）一并写入打卡记录 */
-      var tasks = getTasks(todayKey());
-      rec.actions = tasks.map(function (t) {
-        return { text: t.text, w: t.w, s: t.s, r: t.r, done: t.done };
-      });
-    } else {
-      rec.checkedIn = rec.exercises.length > 0;
-    }
+    var tk = todayKey();
+    /* 用户显式确认 → 只写 confirmed（派生层唯一保留的确认标志）。
+       当日若仍有未完成任务，deriveDay() 依然判定「未打卡」——
+       「没做完就不算打卡」这条规则在数据层强制成立，任何入口都无法绕过。 */
+    rec.confirmed = (editDate === tk) ? true : (rec.exercises.length > 0);
     save();
     closeSheet();
     refreshAll();
-    toast(editDate === todayKey() ? (namePrefix() + "打卡成功 🔥") : "已保存");
+    var d = deriveDay(editDate);
+    if (d.pending > 0) toast("还有 " + d.pending + " 个动作未完成，暂不计入打卡");
+    else toast(editDate === tk ? (namePrefix() + "打卡成功 🔥") : "已保存");
   }
 
   function undoToday() {
-    var rec = getRecord(todayKey());
+    var tk = todayKey();
+    var rec = getRecord(tk);
     if (rec) {
-      rec.checkedIn = false;
-      if (rec.exercises.length === 0) delete data.records[todayKey()];
+      rec.confirmed = false;
+      if ((rec.exercises || []).length === 0) delete data.records[tk];
     }
+    /* 任务完成态也是「已打卡」的事实源之一，撤销必须一并回退，否则仍会被判为已打卡 */
+    (data.tasks[tk] || []).forEach(function (t) { t.done = false; });
     save();
     closeSheet();
     refreshAll();
@@ -1105,6 +1168,37 @@
   }
 
   /* ---------- 统计 + 图表 ---------- */
+  /* 应用标题（用户可改）：同步 header 顶部 + 统计页输入框回填 */
+  function renderAppTitle() {
+    var el = $("headerTitle");
+    if (el) el.textContent = data.appTitle || "健身打卡";
+    var inp = $("inpAppTitle");
+    if (inp && inp.value !== (data.appTitle || "")) {
+      inp.value = data.appTitle || "健身打卡";
+    }
+  }
+  /* 点击 header 标题 → 原位编辑（Enter/失焦确认，Esc 取消） */
+  function startEditAppTitle() {
+    var title = $("headerTitle");
+    var input = $("headerTitleEdit");
+    if (!title || !input || input.classList.contains("show")) return;
+    title.hidden = true;
+    input.classList.add("show");
+    input.value = data.appTitle || "健身打卡";
+    setTimeout(function () { try { input.focus(); input.select(); } catch (e) {} }, 0);
+  }
+  function commitAppTitleEdit(cancel) {
+    var title = $("headerTitle");
+    var input = $("headerTitleEdit");
+    if (!title || !input || title.hidden !== true) return;  // 防重入（Enter 后 blur 会再触发）
+    if (!cancel) {
+      data.appTitle = (input.value || "").trim() || "健身打卡";
+      save();
+    }
+    input.classList.remove("show");
+    title.hidden = false;
+    renderAppTitle();
+  }
   function renderStats() {
     var s = computeStreaks();
     var t = totals();
@@ -1113,6 +1207,7 @@
     $("sumLong").textContent = s.longest;
     $("sumDur").textContent = t.dur;
 
+    renderAppTitle();     // 同步回填「应用标题」输入框
     renderTypeDist();
     drawWeekChart();
     drawTrendChart();
@@ -1307,6 +1402,7 @@
   }
   function renderPlan() {
     ensurePlan();
+    renderSceneSwitch();
     if (!data.plan) return;
     $("planIntro").textContent = data.plan.note || "";
     var list = $("planList");
@@ -1357,6 +1453,13 @@
     document.querySelector('.nav-btn[data-tab="' + name + '"]').classList.add("active");
     if (name === "stats") renderStats();
     if (name === "plan") renderPlan();
+    if (name === "room") {
+      renderRoom();
+      /* 进页时顺带拉一次最新看板（失败静默：本地打卡不受影响） */
+      if (isCloudReady() && cloud.room) {
+        loadRoomData().then(function () { if (isRoomTab()) renderRoom(); }).catch(function () {});
+      } else if (cloudOn() && !cloud.ready) { cloudInit(); }
+    }
   }
 
   /* ---------- 工具 ---------- */
@@ -1367,6 +1470,7 @@
   }
 
   function refreshAll() {
+    renderAppTitle();
     renderToday();
     renderCalendar();
     if ($("panel-stats").classList.contains("active")) renderStats();
@@ -1393,6 +1497,8 @@
   var wizTasks = [];
   var wizIndex = 0;
   var wizEmpty = false;
+  /* 计时器状态（仅 timed 动作使用） */
+  var wizTimerState = { duration: 0, remaining: 0, running: false, finished: false, rafId: 0, lastTick: 0 };
 
   function numOr(v, def) { var n = parseFloat(v); return isNaN(n) ? def : n; }
 
@@ -1420,21 +1526,26 @@
   /* 带称呼的前缀：有用户名返回「名字，」，否则返回空串 */
   function namePrefix() { var u = getUsername(); return u ? (u + "，") : ""; }
 
-  /* 基础代谢率 BMR（Mifflin-St Jeor 公式，kcal/天）：参与力量训练的能量补偿 */
-  function bmr() {
-    var w = getWeight(), h = getHeight(), a = getAge();
-    if (getGender() === "female") return 10 * w + 6.25 * h - 5 * a - 161;
-    return 10 * w + 6.25 * h - 5 * a + 5;
+  /* 基础代谢率 BMR（Mifflin-St Jeor 公式，kcal/天）——委托纯模块 js/calc.js */
+  function bmr() { return CALC.bmrPure(getWeight(), getHeight(), getAge(), getGender()); }
+
+  /* 当前身体参数上下文（供纯函数显式传参，便于单测） */
+  function ctxOf() {
+    var w = getWeight(), h = getHeight(), a = getAge(), g = getGender();
+    return { weight: w, height: h, age: a, gender: g, bmr: CALC.bmrPure(w, h, a, g) };
   }
 
   /* 力量训练（今日任务）：做功 + 代谢模型。
-     ① 机械做功 W = 器械重量 × 次数 × 组数 × 位移(约0.5m) × 重力 9.8，换算 kcal（1 kcal = 4184 J）；
-     ② 人体做功效率约 25%，且组间休息也有代谢消耗，故乘以能量补偿系数；
-     ③ 自重动作：有效负荷 ≈ 体重 × 动作系数（见 ex.selfLoad，缺省 0.6）；
-     ④ 叠加 BMR 分摊（按每组约 45 秒折算）。
-     timed 动作（平板支撑等）按「体重 × MET × 秒数」估算。 */
-  function estTaskKcal(t) {
+     —— 公式本身在 js/calc.js（纯函数）；此处只负责「任务 → 显式入参」的解析。
+     ① 机械做功 W = 有效负荷 × 次数 × 组数 × 位移(约0.5m) × 重力 9.8，换算 kcal（1 kcal = 4184 J）；
+     ② 人体做功效率约 25%，组间休息也有代谢消耗，故乘补偿系数；
+     ③ 自重动作：有效负荷 ≈ 体重 × 动作系数（ex.selfLoad，缺省 0.6）；
+     ④ 叠加 BMR 分摊（按每组约 105 秒折算）；
+     timed 动作（平板支撑等）按「MET × 体重 × 秒数」估算。
+     ctx 可显式传入（测试用）；缺省取当前身体数据。返回整数千卡或 null。 */
+  function estTaskKcal(t, ctx) {
     if (!t) return null;
+    ctx = ctx || ctxOf();
     var s = numOr(t.s, null);
     if (s == null || s <= 0) return null;
     var ex = t.exid != null ? exById(t.exid) : findExerciseByName(String(t.text || "").split(" ")[0]);
@@ -1444,9 +1555,8 @@
       var secs = parseDurationSec(t.r, ex ? ex.reps : null);
       if (!secs) return null;
       var met = ex ? ex.met : 4;
-      var kcalT = met * getWeight() * (secs / 3600);   // MET 以小时计
-      kcalT = kcalT * 1.0;
-      return Math.round(kcalT * s + bmr() / 1440 * (secs * s / 60));
+      var kt = CALC.kcalTimedPure(met, ctx.weight, secs, s, ctx.bmr);
+      return kt == null ? null : Math.round(kt);
     }
 
     var r = numOr(t.r, null);
@@ -1455,66 +1565,39 @@
     var isWeighted = (ex ? !!ex.weighted : true);
     var effW;
     if (!isWeighted) {
-      effW = getWeight() * (ex && ex.selfLoad ? ex.selfLoad : 0.6);
+      effW = ctx.weight * (ex && ex.selfLoad ? ex.selfLoad : CALC.CALIB.selfLoadFallback);
     } else {
-      effW = (w == null || w === 0) ? getWeight() * 0.6 : w;
+      effW = (w == null || w === 0) ? ctx.weight * CALC.CALIB.selfLoadFallback : w;
     }
-    /* 机械功（J）→ kcal，除以人体做功效率 0.25，再乘代谢补偿 1.6 */
-    var displacement = ex && ex.disp ? ex.disp : 0.5;      // 每组平均位移（米）
-    var workJ = effW * 9.8 * displacement * r * s;         // 总机械功
-    var workKcal = workJ / 4184;                           // 转千卡
-    var kcal = workKcal / 0.25 * 1.6;
-    /* 叠加组间休息的 BMR 分摊（每组约 45 秒 + 60 秒休息 ≈ 105 秒） */
-    var restMin = (s * 105) / 60;
-    kcal += bmr() / 1440 * restMin;
-    return Math.round(kcal);
+    var disp = ex && ex.disp ? ex.disp : CALC.CALIB.displacement;
+    var kcal = CALC.kcalStrengthPure(effW, r, s, disp, ctx.bmr, CALC.CALIB.restSecPerSet);
+    return kcal == null ? null : Math.round(kcal);
   }
 
-  /* 解析时长文本（"45-60秒" / "30秒" / "20分钟" / "12"）为秒数 */
-  function parseDurationSec(v, fallbackText) {
-    var txt = (v == null ? "" : String(v));
-    var mMin = txt.match(/(\d+)\s*分/);
-    if (mMin) return parseInt(mMin[1], 10) * 60;
-    var mSec = txt.match(/(\d+)\s*秒/);
-    if (mSec) return parseInt(mSec[1], 10);
-    var mNum = txt.match(/^(\d+)$/);
-    if (mNum) {
-      /* 纯数字：若该动作 reps 文本带「秒」则视为秒，否则视为次数（无法作时间型处理） */
-      if (fallbackText && String(fallbackText).indexOf("秒") !== -1) return parseInt(mNum[1], 10);
-      return null;
-    }
-    var mRange = txt.match(/(\d+)\s*-\s*(\d+)\s*秒/);
-    if (mRange) return parseInt(mRange[1], 10);
-    return null;
-  }
+  /* 解析时长文本（"45-60秒" / "30秒" / "20分钟" / "12"）为秒数——委托纯模块 */
+  function parseDurationSec(v, fallbackText) { return CALC.parseDurationSec(v, fallbackText); }
 
-  /* 有氧/球类/游泳（运动记录，含类型/时长）：MET × 体重(kg) × 时长(小时)。
+  /* 有氧/球类/游泳（运动记录，含类型/时长）：MET × 体重(kg) × 时长(分钟) / 60。
      具体项目（如羽毛球）优先用 SPORT_LIB 的 MET；否则用类型平均 MET。缺时长则返回 null。 */
-  function estExKcal(ex) {
+  function estExKcal(ex, ctx) {
     if (!ex) return null;
+    ctx = ctx || ctxOf();
     var met = (ex.sport && SPORT_LIB[ex.sport]) ? SPORT_LIB[ex.sport].met : (TYPE_MAP[ex.type] ? TYPE_MAP[ex.type].met : 4);
     var min = numOr(ex.duration, null);
     if (min == null || min <= 0) return null;
-    var kcal = met * getWeight() * (min / 60);
-    return Math.round(kcal);
+    var k = CALC.kcalCardioPure(met, ctx.weight, min);
+    return k == null ? null : Math.round(k);
   }
 
-  /* 今日预计消耗（千卡）= 今日任务做功法之和 + 今日运动记录 MET 之和 */
-  function todayCalorie() {
-    var tasks = getTasks(todayKey());
-    var sum = 0;
-    tasks.forEach(function (t) { var k = estTaskKcal(t); if (k != null) sum += k; });
-    var rec = getRecord(todayKey());
-    if (rec && rec.exercises) rec.exercises.forEach(function (e) { var k = estExKcal(e); if (k != null) sum += k; });
-    return sum;
-  }
-  /* 指定日期的总消耗（历史/日历用）：从 rec.actions（重量/组数/次数）+ rec.exercises 估算 */
+  /* 今日预计消耗（千卡）= 今日任务做功法之和 + 今日运动记录 MET 之和
+     —— 即 dayCalorie(今天) 的语义别名（统一走派生层） */
+  function todayCalorie() { return dayCalorie(todayKey()); }
+  /* 指定日期的总消耗（历史/日历用）：派生动作明细（重量/组数/次数）+ 运动记录 */
   function dayCalorie(k) {
-    var rec = getRecord(k);
-    if (!rec) return 0;
+    var d = deriveDay(k);
     var sum = 0;
-    if (rec.actions) rec.actions.forEach(function (a) { var kc = estTaskKcal(a); if (kc != null) sum += kc; });
-    if (rec.exercises) rec.exercises.forEach(function (e) { var kc = estExKcal(e); if (kc != null) sum += kc; });
+    d.actions.forEach(function (a) { var kc = estTaskKcal(a); if (kc != null) sum += kc; });
+    d.exercises.forEach(function (e) { var kc = estExKcal(e); if (kc != null) sum += kc; });
     return sum;
   }
 
@@ -1526,11 +1609,14 @@
   }
 
   function openWizard(k) {
-    syncCheckin();   // 进入向导前强制重算完成态：只要还有未完成动作，绝不显示“今日打卡完成”
     var tasks = getTasks(k);
     wizTasks = tasks;
     wizIndex = 0;
     // 复位视图（防止上次「打卡成功」完成页残留，导致重新打开报错）
+    stopWizTimer(true);
+    hideWizTimer();
+    var ico0 = $("wizActionIco");
+    if (ico0) ico0.classList.remove("done");
     $("wizDoneView").hidden = true;
     $("wizBody").hidden = false;
     $("wizFoot").hidden = false;
@@ -1548,11 +1634,10 @@
       wizIndex = ri;
     }
     if (!tasks.length) {
-      // 休息日 / 未安排：中间圆形按钮直接打卡
+      // 休息日 / 未安排：中间圆形按钮直接打卡（提示文案由 CSS .wiz-body.empty ::after 渲染）
       wizEmpty = true;
       $("wizBody").classList.add("empty");
       $("wizActionName").textContent = "今天没有安排动作";
-      $("wizActionMeta").textContent = "点击中间圆形按钮记录今天的状态，或返回去添加动作。";
       $("wizProgress").innerHTML = "";
       $("wizCount").textContent = "";
       $("wizPrev").disabled = true;
@@ -1595,15 +1680,6 @@
     var isTimed = isTimedTask(t);
     if ($("lblR")) $("lblR").textContent = isTimed ? "时长(秒)" : "次数";
 
-    var meta = [];
-    if (needWeight && t.w) meta.push(t.w + "kg");
-    else if (!needWeight) meta.push("自重");
-    if (t.s) meta.push(t.s + "组");
-    if (t.r) meta.push((isTimed ? "" : "×") + t.r);
-    $("wizActionMeta").innerHTML = meta.length
-      ? "预设 <b>" + meta.join(" · ") + "</b>，可滑动滚轮微调"
-      : (needWeight ? "可滑动滚轮设置重量 / 组数 / 次数" : "可滑动滚轮设置组数 / 次数");
-
     if (needWeight) buildWheel("wheelItemsW", "wheelW", WEIGHTS, numOr(t.w, 0));
     buildWheel("wheelItemsS", "wheelS", SETS, numOr(t.s, 1));
     var repVals = isTimed ? TIMED_SECS : REPS;
@@ -1612,7 +1688,31 @@
     var nextBtn = $("wizNext");
     prevBtn.disabled = (wizIndex === 0);
     nextBtn.disabled = (wizIndex >= total - 1);
+    /* 进度点：已完成(i<wizIndex)的也带 done 样式（绿），与当前步骤的蓝区分开 */
+    if (prog.children) {
+      for (var j = 0; j < prog.children.length; j++) {
+        var dj = prog.children[j];
+        if (!dj) continue;
+        if (j < wizIndex) dj.classList.add("done");
+        else dj.classList.remove("done");
+      }
+    }
     updateWizCal();
+    /* 计时器：timed 动作直接显示（无入口按钮），非 timed 隐藏；
+       每次切到新动作时按预设秒数重置 */
+    var timerBox = $("wizTimerBox");
+    if (timerBox) {
+      if (isTimed) {
+        var dur = numOr(t.r, 45);
+        if (!isFinite(dur) || dur < 5) dur = 5;
+        if (dur > 600) dur = 600;
+        initWizTimer(Math.round(dur));
+        timerBox.hidden = false;
+      } else {
+        stopWizTimer(true);
+        timerBox.hidden = true;
+      }
+    }
   }
 
   /* 实时刷新向导底部卡路里：当前动作 ≈ kcal + 今日累计 ≈ kcal */
@@ -1682,8 +1782,13 @@
     save();
     // 实时刷新卡路里（组数/重量/次数/时长变化即时反映）
     updateWizCal();
-    var meta = $("wizActionMeta");
-    if (meta && meta.getAttribute("data-live") === "1") renderWizardStep();
+    /* 时长滚轮 → 计时器实时联动：timed 动作改秒数时，计时器时长同步重置 */
+    if (wheelElId === "wheelR" && isTimedTask(t)) {
+      var d = numOr(val, 45);
+      if (!isFinite(d) || d < 5) d = 5;
+      if (d > 600) d = 600;
+      initWizTimer(Math.round(d));
+    }
   }
 
   /* 上一个：返回上一个动作（不退出、不标记完成） */
@@ -1699,27 +1804,175 @@
   /* 圆形「完成」按钮：仅标记当前动作为已完成，并前进到下一动作（全部完成则结束打卡） */
   function completeCurrent() {
     if (wizEmpty || !wizTasks.length) { finishWizard(); return; }
+    stopWizTimer(true);   // 当前动作完成 → 停计时
+    hideWizTimer();       // 内嵌计时器若已展开，收回为「开始计时」按钮态
     wizTasks[wizIndex].done = true;
     save();
     var allDone = wizTasks.every(function (t) { return t.done; });
-    if (allDone) { finishWizard(); return; }   // 仅当全部动作完成才显示「打卡成功」
-    // 还有未完成动作：不结束打卡，自动前往下一个未完成动作
-    var nu = firstUndoneFrom(wizTasks, wizIndex + 1);
-    if (nu === -1) nu = wizIndex;
-    wizIndex = nu;
-    renderWizardStep();
-    toast("还有动作未完成，继续 →");
+    /* 视觉反馈：图标暗化 + 绿勾角标，进度点标 done，480ms 后切下一步 */
+    var ico = $("wizActionIco");
+    var prog = $("wizProgress");
+    if (ico) ico.classList.add("done");
+    if (prog && prog.children && prog.children[wizIndex]) prog.children[wizIndex].classList.add("done");
+    setTimeout(function () {
+      if (ico) ico.classList.remove("done");
+      if (allDone) {
+        finishWizard();
+        return;
+      }
+      var nu = firstUndoneFrom(wizTasks, wizIndex + 1);
+      if (nu === -1) nu = wizIndex;
+      wizIndex = nu;
+      renderWizardStep();
+      toast("还有动作未完成，继续 →");
+    }, 480);
+  }
+
+  /* ============================================================
+     计时器 + 闹钟（仅 timed 动作启用；独立弹窗，点击圆圈 = 开始/暂停/继续）
+     ============================================================ */
+  var WIZ_TIMER_R = 52;   // 圆环半径
+  var WIZ_TIMER_C = 2 * Math.PI * WIZ_TIMER_R;  // 周长
+  function initWizTimer(dur) {
+    stopWizTimer(true);
+    wizTimerState.duration = dur;
+    wizTimerState.remaining = dur;
+    wizTimerState.running = false;
+    wizTimerState.finished = false;
+    updateWizTimerUI();
+  }
+  function stopWizTimer(clear) {
+    wizTimerState.running = false;
+    if (wizTimerState.rafId) {
+      cancelAnimationFrame(wizTimerState.rafId);
+      wizTimerState.rafId = 0;
+    }
+    if (clear) {
+      wizTimerState.remaining = wizTimerState.duration;
+      wizTimerState.finished = false;
+    }
+    updateWizTimerUI();
+  }
+  function startWizTimer() {
+    if (wizTimerState.finished) {
+      wizTimerState.remaining = wizTimerState.duration;
+      wizTimerState.finished = false;
+    }
+    if (wizTimerState.remaining <= 0) return;
+    wizTimerState.running = true;
+    wizTimerState.lastTick = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
+    tickWizTimer();
+  }
+  function pauseWizTimer() {
+    wizTimerState.running = false;
+    if (wizTimerState.rafId) {
+      cancelAnimationFrame(wizTimerState.rafId);
+      wizTimerState.rafId = 0;
+    }
+    updateWizTimerUI();
+  }
+  function resetWizTimer() {
+    if (wizTimerState.duration <= 0) wizTimerState.duration = 45;
+    initWizTimer(wizTimerState.duration);
+  }
+  /* 点击圆圈：finished → 重置并重新开始；running → 暂停；其余 → 开始 */
+  function toggleWizTimer() {
+    if (wizTimerState.finished) { resetWizTimer(); startWizTimer(); }
+    else if (wizTimerState.running) { pauseWizTimer(); }
+    else { startWizTimer(); }
+  }
+  function tickWizTimer() {
+    if (!wizTimerState.running) return;
+    var now = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
+    var dt = (now - wizTimerState.lastTick) / 1000;
+    wizTimerState.lastTick = now;
+    wizTimerState.remaining = Math.max(0, wizTimerState.remaining - dt);
+    updateWizTimerUI();
+    if (wizTimerState.remaining <= 0) {
+      wizTimerState.running = false;
+      wizTimerState.finished = true;
+      wizTimerState.rafId = 0;
+      updateWizTimerUI();
+      timerAlarm();
+      return;
+    }
+    wizTimerState.rafId = requestAnimationFrame(tickWizTimer);
+  }
+  function updateWizTimerUI() {
+    var num = $("wizTimerNum");
+    var lbl = $("wizTimerLbl");
+    var bar = $("wizTimerBar");
+    var ring = $("wizTimerRing");
+    if (num) num.textContent = formatWizTimer(wizTimerState.remaining);
+    if (lbl) {
+      if (wizTimerState.finished) lbl.textContent = "时间到！再点一下重新开始";
+      else if (wizTimerState.running) lbl.textContent = "点击圆圈暂停";
+      else if (wizTimerState.duration > 0 && wizTimerState.remaining < wizTimerState.duration) lbl.textContent = "点击圆圈继续";
+      else if (wizTimerState.duration > 0) lbl.textContent = "点击圆圈开始";
+      else lbl.textContent = "—";
+    }
+    if (ring) ring.classList.toggle("running", wizTimerState.running);
+    if (bar) {
+      var ratio = wizTimerState.duration > 0 ? (wizTimerState.remaining / wizTimerState.duration) : 0;
+      if (ratio < 0) ratio = 0;
+      bar.style.strokeDasharray = WIZ_TIMER_C;
+      bar.style.strokeDashoffset = WIZ_TIMER_C * (1 - ratio);
+      bar.classList.toggle("done", wizTimerState.finished);
+    }
+  }
+  /* 计时器显隐辅助：timed 动作在 renderWizardStep 里直接显示；这里只负责收回 */
+  function hideWizTimer() {
+    var box = $("wizTimerBox");
+    if (box) box.hidden = true;
+  }
+  function formatWizTimer(sec) {
+    var s = Math.ceil(sec);
+    if (!isFinite(s) || s < 0) s = 0;
+    var m = Math.floor(s / 60);
+    var r = s % 60;
+    return (m < 10 ? "0" : "") + m + ":" + (r < 10 ? "0" : "") + r;
+  }
+  /* Web Audio 合成哔哔声 + 振动（无外部资源，离线可用；用户首次交互后自动激活） */
+  function getWizAudio() {
+    if (!window.__wizAC) {
+      try {
+        var Ctor = window.AudioContext || window.webkitAudioContext;
+        if (Ctor) window.__wizAC = new Ctor();
+      } catch (e) { window.__wizAC = null; }
+    }
+    return window.__wizAC;
+  }
+  function beep(durationMs, freq) {
+    var ac = getWizAudio();
+    if (!ac) return;
+    try {
+      var o = ac.createOscillator();
+      var g = ac.createGain();
+      o.type = "sine";
+      o.frequency.value = freq || 880;
+      var t0 = ac.currentTime;
+      g.gain.setValueAtTime(0.0, t0);
+      g.gain.linearRampToValueAtTime(0.4, t0 + 0.02);
+      g.gain.linearRampToValueAtTime(0.0, t0 + durationMs / 1000);
+      o.connect(g); g.connect(ac.destination);
+      o.start();
+      o.stop(t0 + durationMs / 1000 + 0.02);
+    } catch (e) {}
+  }
+  function timerAlarm() {
+    beep(180, 880);
+    setTimeout(function () { beep(180, 660); }, 220);
+    setTimeout(function () { beep(180, 880); }, 440);
+    setTimeout(function () {
+      try { if (navigator.vibrate) navigator.vibrate([200, 80, 200, 80, 200]); } catch (e) {}
+    }, 30);
   }
 
   function finishWizard() {
     var rec = ensureRecord(todayKey());
-    rec.checkedIn = true;
-    /* 仅在确有任务时写入动作明细，避免空向导覆盖已有记录 */
-    if (wizTasks && wizTasks.length) {
-      rec.actions = wizTasks.map(function (t) {
-        return { text: t.text, w: t.w, s: t.s, r: t.r, done: t.done };
-      });
-    }
+    /* 写用户的显式打卡确认。动作明细不再单独持久化——由 deriveDay() 从 data.tasks 派生。
+       有任务时 deriveDay 仍要求「全部完成」才算已打卡，故这里不会把未完成的记成完成。 */
+    rec.confirmed = true;
     save();
     showWizardDone();
   }
@@ -1739,6 +1992,10 @@
     // 记住当前所在动作，下次进入今日打卡时从中途继续（避免重复翻页）
     data.wizResume = (typeof wizIndex === "number") ? wizIndex : 0;
     save();
+    stopWizTimer(true);
+    hideWizTimer();
+    var icoC = $("wizActionIco");
+    if (icoC) icoC.classList.remove("done");
     $("wizard").hidden = true;
     $("wizBack").style.visibility = "visible";
     $("wizBody").hidden = false;
@@ -1746,6 +2003,549 @@
     $("wizFoot").hidden = false;
     wizTasks = []; wizIndex = 0; wizEmpty = false;
     renderTasks();   // 中途退出后，首页「今日任务」实时反映已配置参数与完成状态
+  }
+
+  /* ============================================================
+     云端与组队（v5.0.0）
+     ------------------------------------------------------------
+     定位：登录与组队是**叠加能力**，不是前置条件。
+           未配置 / 未联网 / 请求失败时，本地打卡完全不受影响 —— 这是硬约束。
+     ------------------------------------------------------------
+     口径（已与用户确认）：
+       · 登录：匿名设备账号起步，可绑定邮箱升级为正式账号；
+       · 组队：组队房间（6 位邀请码拉人）；
+       · 粒度：只同步「摘要」——今天是否打卡 / 完成项数 / 估算消耗。
+               动作明细（每组重量次数）永不上云。
+     ============================================================ */
+  var ROOM_EMOJI = "💪";
+  var SYNC_DEBOUNCE = 1200;
+  var CLOUD_ON = !!(CLOUD && SOCIAL && CLOUD_CFG && CLOUD_CFG.envId);
+  if (CLOUD_ON) {
+    try { CLOUD.configure({ envId: CLOUD_CFG.envId, accessKey: CLOUD_CFG.accessKey }); }
+    catch (e) { CLOUD_ON = false; }
+  }
+  var cloud = {
+    ready: false,     // 是否已拿到可用会话
+    user: null,       // { id, email, is_anonymous }
+    room: null,       // { id, code, name, goal_kind, goal_value }
+    members: [],      // 房间成员（含 profiles 昵称/连胜）
+    summaries: [],    // 房间区间内的 day_summaries 摘要行
+    board: [],        // memberBoard() 结果（成员看板）
+    error: "",
+    syncing: false,
+    lastSync: ""
+  };
+  var syncTimer = null;
+  var pendingDays = {};
+  var profileSig = "";
+
+  function cloudOn() { return !!(CLOUD_ON && CLOUD && CLOUD.isConfigured()); }
+  function isCloudReady() { return cloudOn() && cloud.ready && !!cloud.user; }
+  function cloudErr(e) { return (e && e.message) ? e.message : "网络异常"; }
+  function stamp() {
+    var d = new Date();
+    return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+  }
+  function myNickname() { return getUsername() || "我"; }
+
+  /* ---------- 上报：资料 + 每日摘要 ---------- */
+  /* 昵称/连胜变化才上报，避免每次打卡都多打一次请求 */
+  function pushProfile(force) {
+    if (!isCloudReady()) return Promise.resolve();
+    var s = computeStreaks();
+    var sig = myNickname() + "|" + s.current + "|" + s.total;
+    if (!force && sig === profileSig) return Promise.resolve();
+    var row = SOCIAL.profileRow(cloud.user.id, myNickname(), ROOM_EMOJI, s);
+    row.updated_at = new Date().toISOString();
+    return CLOUD.upsert("profiles", [row], "id").then(function () { profileSig = sig; });
+  }
+  function pushSummary(day) {
+    if (!isCloudReady()) return Promise.resolve();
+    var row = SOCIAL.summaryRow(cloud.user.id, day, deriveDay(day), dayCalorie(day));
+    row.updated_at = new Date().toISOString();
+    return CLOUD.upsert("day_summaries", [row], "user_id,day");
+  }
+  /* 首次连接时回推最近 n 天：只回推「有任务或有记录」的日期，
+     避免把空白日刷成 checked=false 反而污染队友看到的统计。 */
+  function pushRecent(n) {
+    if (!isCloudReady()) return Promise.resolve();
+    var today = todayKey();
+    var keys = {};
+    Object.keys(data.records || {}).forEach(function (k) { keys[k] = 1; });
+    Object.keys(data.tasks || {}).forEach(function (k) { keys[k] = 1; });
+    var rows = Object.keys(keys)
+      .filter(function (k) { var d = SOCIAL.daysBetween(k, today); return d >= 0 && d <= n; })
+      .sort()
+      .map(function (k) {
+        var row = SOCIAL.summaryRow(cloud.user.id, k, deriveDay(k), dayCalorie(k));
+        row.updated_at = new Date().toISOString();
+        return row;
+      });
+    if (!rows.length) return Promise.resolve();
+    return CLOUD.upsert("day_summaries", rows, "user_id,day");
+  }
+  /* 打卡/改动作后由 save() 触发：防抖合并，避免连续操作打出一串请求 */
+  function queueSync() {
+    if (!cloud || !cloud.ready) return;
+    pendingDays[todayKey()] = 1;
+    if (syncTimer) clearTimeout(syncTimer);
+    syncTimer = setTimeout(function () { syncTimer = null; flushSync(); }, SYNC_DEBOUNCE);
+  }
+  function flushSync() {
+    var days = Object.keys(pendingDays);
+    pendingDays = {};
+    if (!days.length || !isCloudReady()) return Promise.resolve();
+    return Promise.all(days.map(pushSummary))
+      .then(function () { return pushProfile(); })
+      .then(function () {
+        cloud.lastSync = stamp();
+        if (isRoomTab()) return loadRoomData().then(renderRoom);
+        renderRoomAccount();
+      })
+      .catch(function (e) { cloud.error = cloudErr(e); renderRoomAccount(); });
+  }
+
+  /* ---------- 房间：拉取 ---------- */
+  function loadRoom() {
+    if (!isCloudReady()) return Promise.resolve(null);
+    return CLOUD.select("room_members", {
+      select: "room_id,joined_at,rooms(id,code,name,goal_kind,goal_value)",
+      user_id: "eq." + cloud.user.id,
+      order: "joined_at.desc",
+      limit: 1
+    }).then(function (rows) {
+      var r = (rows && rows[0] && rows[0].rooms) ? rows[0].rooms : null;
+      cloud.room = r;
+      return r;
+    });
+  }
+  function loadRoomData() {
+    if (!isCloudReady() || !cloud.room) {
+      cloud.members = []; cloud.summaries = []; cloud.board = [];
+      return Promise.resolve();
+    }
+    var today = todayKey();
+    var from = SOCIAL.monthStart(today);
+    var w = SOCIAL.weekStart(today);
+    var start = (from < w) ? from : w;
+    return CLOUD.select("room_members", {
+      select: "user_id,joined_at,profiles(nickname,emoji,streak,total_days)",
+      room_id: "eq." + cloud.room.id
+    }).then(function (rows) {
+      cloud.members = (rows || []).map(function (m) {
+        var p = m.profiles || {};
+        return { user_id: m.user_id, nickname: p.nickname, emoji: p.emoji, streak: p.streak, total_days: p.total_days };
+      });
+      var ids = cloud.members.map(function (m) { return m.user_id; });
+      if (!ids.length) return [];
+      return CLOUD.select("day_summaries", {
+        select: "user_id,day,checked,done_count,total,kcal",
+        user_id: ids,
+        day: "gte." + start,
+        order: "day.desc"
+      });
+    }).then(function (rows) {
+      cloud.summaries = rows || [];
+      cloud.board = SOCIAL.memberBoard(cloud.members, weekRowsOf(), today);
+    });
+  }
+  function monthRowsOf() { var f = SOCIAL.monthStart(todayKey()); return cloud.summaries.filter(function (r) { return r.day >= f; }); }
+  function weekRowsOf() { var f = SOCIAL.weekStart(todayKey()); return cloud.summaries.filter(function (r) { return r.day >= f; }); }
+  function roomView() {
+    var r = cloud.room || {};
+    var goal = SOCIAL.GOAL_KINDS[r.goal_kind] || SOCIAL.GOAL_KINDS.days;
+    var prog = SOCIAL.progress(monthRowsOf(), r.goal_value);
+    var board = SOCIAL.memberBoard(cloud.members, weekRowsOf(), todayKey());
+    return { goal: goal, prog: prog, board: board, ov: SOCIAL.roomOverview(board) };
+  }
+
+  /* ---------- 启动：建会话 → 建资料 → 拉房间 → 回推历史 ---------- */
+  function cloudInit() {
+    if (!cloudOn()) { renderRoom(); return Promise.resolve(false); }
+    cloud.error = "";
+    cloud.syncing = true;
+    renderRoom();
+    return CLOUD.ensureSession().then(function (s) {
+      cloud.user = s.user;
+      cloud.ready = true;
+      return pushProfile(true);
+    }).then(loadRoom)
+      .then(loadRoomData)
+      .then(function () { return pushRecent(30); })
+      .then(function () {
+        cloud.syncing = false; cloud.lastSync = stamp();
+        renderRoom();
+        return true;
+      })
+      .catch(function (e) {
+        cloud.syncing = false;
+        cloud.error = cloudErr(e);
+        renderRoom();
+        return false;
+      });
+  }
+  function manualSync() {
+    if (!cloudOn()) { toast("未配置云端"); return; }
+    if (cloud.syncing) return;
+    cloudInit().then(function (ok) { toast(ok ? "已同步" : ("同步失败：" + cloud.error)); });
+  }
+
+  /* ---------- 房间：创建 / 加入 / 退出 ---------- */
+  function insertRoomWithCode(name, goal, attempt) {
+    var code = SOCIAL.genRoomCode();
+    return CLOUD.insert("rooms", [{
+      code: code, name: name, owner: cloud.user.id, goal_kind: "days", goal_value: goal
+    }]).catch(function (e) {
+      /* 邀请码唯一约束冲突（极低概率）→ 换一个再试 */
+      if (attempt < 3 && e && (e.status === 409 || e.code === "23505")) return insertRoomWithCode(name, goal, attempt + 1);
+      throw e;
+    });
+  }
+  function createRoom(name, goalValue) {
+    if (!isCloudReady()) { toast("正在连接云端，请稍候"); return Promise.resolve(false); }
+    var goal = Math.max(1, parseInt(goalValue, 10) || 30);
+    return insertRoomWithCode(name, goal, 0).then(function (rows) {
+      var room = rows && rows[0];
+      if (!room) throw new Error("创建房间失败");
+      return CLOUD.insert("room_members", [{ room_id: room.id, user_id: cloud.user.id }])
+        .then(function () { return pushSummary(todayKey()); })
+        .then(function () { cloud.room = room; return loadRoomData(); })
+        .then(function () {
+          renderRoom();
+          toast("房间已创建，邀请码 " + room.code);
+          return true;
+        });
+    }).catch(function (e) {
+      cloud.error = cloudErr(e); renderRoom(); toast("创建失败：" + cloudErr(e)); return false;
+    });
+  }
+  function joinRoom(code) {
+    if (!isCloudReady()) { toast("正在连接云端，请稍候"); return Promise.resolve(false); }
+    var c = SOCIAL.normalizeCode(code);
+    if (!SOCIAL.isValidCode(c)) { toast("邀请码是 6 位字母或数字"); return Promise.resolve(false); }
+    return CLOUD.rpc("join_room_by_code", { p_code: c }).then(function (rows) {
+      var room = rows && rows[0];
+      if (!room) throw new Error("房间不存在");
+      cloud.room = room;
+      return pushSummary(todayKey())
+        .then(loadRoomData)
+        .then(function () { renderRoom(); toast("已加入 " + room.name); return true; });
+    }).catch(function (e) {
+      toast("加入失败：" + cloudErr(e)); return false;
+    });
+  }
+  function leaveRoom() {
+    if (!isCloudReady() || !cloud.room) return Promise.resolve(false);
+    if (!confirm("退出房间？退出后队友将看不到你的打卡摘要。")) return Promise.resolve(false);
+    var rid = cloud.room.id;
+    return CLOUD.remove("room_members", { room_id: "eq." + rid, user_id: "eq." + cloud.user.id })
+      .then(function () {
+        cloud.room = null; cloud.members = []; cloud.summaries = []; cloud.board = [];
+        renderRoom(); toast("已退出房间"); return true;
+      })
+      .catch(function (e) { toast("退出失败：" + cloudErr(e)); return false; });
+  }
+
+  /* ---------- 渲染：账号卡 ---------- */
+  function isRoomTab() { var p = $("panel-room"); return !!(p && p.classList.contains("active")); }
+  function isTodayTab() { var p = $("panel-today"); return !!(p && p.classList.contains("active")); }
+  function renderRoom() { renderRoomAccount(); renderRoomBody(); renderHeaderAccount(); if (isTodayTab()) renderTodayMates(); }
+
+  /* 首页右上角账号入口 */
+  function renderHeaderAccount() {
+    var btn = $("headerAccountBtn"); if (!btn) return;
+    if (isCloudReady() && cloud.user) {
+      btn.textContent = ROOM_EMOJI;
+      btn.title = cloud.user.is_anonymous
+        ? "设备账号 · 点击绑定邮箱"
+        : ("账号：" + (cloud.user.email || ""));
+    } else {
+      btn.textContent = "👤";
+      btn.title = cloudOn() ? "正在连接云端…" : "账号 / 登录";
+    }
+  }
+
+  /* 首页队友今日打卡区 */
+  function renderTodayMates() {
+    var box = $("todayMates"); if (!box) return;
+    if (!isCloudReady() || !cloud.room) { box.hidden = true; box.innerHTML = ""; return; }
+    var today = todayKey(), me = cloud.user.id;
+    var board = SOCIAL.memberBoard(cloud.members, weekRowsOf(), today);
+    if (!board.length) { box.hidden = true; box.innerHTML = ""; return; }
+    var done = board.filter(function (m) { return m.todayChecked; }).length;
+    var h = '<div class="tm-card" id="tmCard">' +
+      '<div class="tm-head">' +
+        '<div class="tm-title">' + escapeHtml(cloud.room.name || "我的房间") + '</div>' +
+        '<div class="tm-count">今日 ' + done + '/' + board.length + ' 已打卡</div>' +
+      '</div>' +
+      '<div class="tm-list">';
+    board.forEach(function (m) {
+      h += '<div class="tm-item">' +
+        '<div class="tm-avatar' + (m.todayChecked ? ' done' : '') + '">' + (m.emoji || ROOM_EMOJI) + '</div>' +
+        '<div class="tm-name">' + escapeHtml((m.id === me ? "我" : m.nickname) || "队友") + '</div>' +
+      '</div>';
+    });
+    h += '</div>';
+    h += '<div class="tm-foot">' + (done === board.length ? "全员已打卡 🎉" : "点击展开完整看板") + '</div>';
+    h += '</div>';
+    box.innerHTML = h; box.hidden = false;
+    var card = $("tmCard"); if (card) card.addEventListener("click", function () { showTab("room"); });
+  }
+
+  function renderRoomAccount() {
+    var box = $("roomAccount");
+    if (!box) return;
+    if (!cloudOn()) {
+      box.innerHTML =
+        '<div class="ra-row">' +
+          '<div class="ra-avatar">📴</div>' +
+          '<div class="ra-main"><div class="ra-name">纯本地模式</div>' +
+          '<div class="ra-sub">打卡数据只保存在这台设备上</div></div>' +
+          '<span class="ra-tag">未配置云端</span>' +
+        '</div>';
+      return;
+    }
+    var sub, tag = "", cls = "ra-tag";
+    if (cloud.error) { sub = "连接失败：" + cloud.error; tag = "离线"; cls = "ra-tag warn"; }
+    else if (!cloud.ready) { sub = "正在连接云端…"; tag = "连接中"; }
+    else if (cloud.user && cloud.user.is_anonymous) {
+      sub = "设备账号（未绑定）· 换设备或清缓存会丢失";
+      tag = cloud.lastSync ? ("已同步 " + cloud.lastSync) : "已连接"; cls = "ra-tag on";
+    } else {
+      sub = (cloud.user && cloud.user.email) || "已绑定邮箱";
+      tag = cloud.lastSync ? ("已同步 " + cloud.lastSync) : "已连接"; cls = "ra-tag on";
+    }
+    var bound = cloud.user && !cloud.user.is_anonymous;
+    box.innerHTML =
+      '<div class="ra-row">' +
+        '<div class="ra-avatar">' + ROOM_EMOJI + '</div>' +
+        '<div class="ra-main">' +
+          '<div class="ra-name">' + escapeHtml(myNickname()) + '</div>' +
+          '<div class="ra-sub">' + escapeHtml(sub) + '</div>' +
+        '</div>' +
+        '<span class="' + cls + '">' + escapeHtml(tag) + '</span>' +
+      '</div>' +
+      '<div class="ra-actions">' +
+        '<button class="btn-ghost" id="raAccountBtn">' + (bound ? "账号" : "绑定邮箱") + '</button>' +
+        '<button class="btn-ghost" id="raSyncBtn">立即同步</button>' +
+      '</div>';
+    var a = $("raAccountBtn"); if (a) a.addEventListener("click", openAccount);
+    var b = $("raSyncBtn"); if (b) b.addEventListener("click", manualSync);
+  }
+
+  /* ---------- 渲染：房间主体（未配置 / 未加入 / 已加入 三态） ---------- */
+  function renderRoomBody() {
+    var box = $("roomBody");
+    if (!box) return;
+    if (!cloudOn()) { box.innerHTML = roomNotConfiguredHtml(); return; }
+    if (!cloud.ready) {
+      box.innerHTML =
+        '<div class="room-card"><div class="room-empty">' +
+          '<div class="room-empty-ico">☁️</div>' +
+          '<div class="room-empty-title">正在连接云端</div>' +
+          '<div class="room-empty-sub">' + escapeHtml(cloud.error || "首次连接会自动创建你的设备账号，不会打断本地打卡。") + '</div>' +
+          '<button class="room-btn ghost" id="roomRetryBtn" style="margin-top:16px">重试</button>' +
+        '</div></div>';
+      var rb = $("roomRetryBtn"); if (rb) rb.addEventListener("click", manualSync);
+      return;
+    }
+    if (!cloud.room) { box.innerHTML = roomNoRoomHtml(); bindNoRoom(); return; }
+    box.innerHTML = roomBoardHtml(); bindRoomBoard();
+  }
+
+  function roomNotConfiguredHtml() {
+    return '<div class="room-card">' +
+      '<div class="room-empty">' +
+        '<div class="room-empty-ico">🤝</div>' +
+        '<div class="room-empty-title">组队需要先接上云端</div>' +
+        '<div class="room-empty-sub">不接也能用 —— 打卡数据一直保存在本机。<br>接上之后，「登录 + 共同打卡」才可能实现。</div>' +
+      '</div>' +
+      '<ol class="room-steps">' +
+        '<li>到 tcb.cloud.tencent.com 登录（需个人实名），新建一个 <code>PostgreSQL</code> 环境的免费体验版</li>' +
+        '<li>在「环境概览」复制 <code>环境 ID</code></li>' +
+        '<li>把环境 ID 填进 <code>js/cloud-config.js</code></li>' +
+        '<li>数据库 → SQL 编辑器，执行一次 <code>cloudbase/schema.sql</code></li>' +
+        '<li>身份认证 → 登录方式：打开 <code>匿名登录</code> 与 <code>邮箱验证码</code></li>' +
+        '<li>身份认证 → 开发设置：把本页域名加入 <code>安全来源</code> 白名单</li>' +
+      '</ol>' +
+      '<div class="room-card-sub" style="margin-top:12px">完成后刷新页面，这里会自动创建你的设备账号。</div>' +
+    '</div>';
+  }
+
+  function roomNoRoomHtml() {
+    return '<div class="room-card">' +
+      '<div class="room-empty">' +
+        '<div class="room-empty-ico">👥</div>' +
+        '<div class="room-empty-title">还没有加入任何房间</div>' +
+        '<div class="room-empty-sub">房间是一个小圈子：3–5 个熟人一起练，看得到彼此今天有没有打卡。</div>' +
+      '</div>' +
+    '</div>' +
+    '<div class="room-card">' +
+      '<div class="room-card-title">创建一个房间</div>' +
+      '<div class="room-card-sub">建好后把邀请码发给朋友，他们输入即可加入。</div>' +
+      '<div class="room-field"><label>房间名称</label>' +
+        '<input class="room-input" id="roomNameInput" maxlength="16" placeholder="例如：晨练小分队" /></div>' +
+      '<div class="room-field"><label>集体目标（本月全队累计打卡天数）</label>' +
+        '<input class="room-input" id="roomGoalInput" type="number" inputmode="numeric" min="1" max="999" value="30" /></div>' +
+      '<button class="room-btn" id="roomCreateBtn">创建房间</button>' +
+    '</div>' +
+    '<div class="room-card">' +
+      '<div class="room-card-title">用邀请码加入</div>' +
+      '<div class="room-card-sub">6 位字母数字，不含容易看错的 I / O / 0 / 1。</div>' +
+      '<div class="room-field"><label>邀请码</label>' +
+        '<input class="room-input code" id="roomCodeInput" maxlength="6" placeholder="ABC123" /></div>' +
+      '<button class="room-btn" id="roomJoinBtn">加入房间</button>' +
+    '</div>';
+  }
+  function bindNoRoom() {
+    var c = $("roomCreateBtn");
+    if (c) c.addEventListener("click", function () {
+      var name = ($("roomNameInput").value || "").trim();
+      if (!name) { toast("给房间起个名字"); return; }
+      createRoom(name, $("roomGoalInput").value);
+    });
+    var j = $("roomJoinBtn");
+    if (j) j.addEventListener("click", function () {
+      var code = ($("roomCodeInput").value || "").trim();
+      if (!code) { toast("请输入邀请码"); return; }
+      joinRoom(code);
+    });
+  }
+
+  function roomBoardHtml() {
+    var v = roomView();
+    var today = todayKey();
+    var me = cloud.user ? cloud.user.id : null;
+    var h = '<div class="room-hero">';
+    h += '<div class="rh-top"><div>' +
+      '<div class="rh-name">' + escapeHtml(cloud.room.name || "我的房间") + '</div>' +
+      '<div class="rh-goal">集体目标：全队本月' + escapeHtml(v.goal.name) + ' ' + v.prog.target + ' ' + escapeHtml(v.goal.unit) + '</div>' +
+      '</div><span class="ra-tag on">今日 ' + v.ov.done + '/' + v.ov.total + ' 已打卡</span></div>';
+    h += '<div class="rh-code"><span class="rh-code-label">邀请码</span>' +
+      '<span class="rh-code-val">' + escapeHtml(cloud.room.code || "") + '</span>' +
+      '<button class="rh-copy" id="roomCopyBtn">复制</button></div>';
+    h += '<div class="rh-progress"><div class="rhp-top"><span>本月全队进度</span>' +
+      '<span><b class="rhp-num">' + v.prog.done + '</b> / ' + v.prog.target + ' ' + escapeHtml(v.goal.unit) + '</span></div>' +
+      '<div class="rhp-bar"><div class="rhp-fill" id="roomProgFill"></div></div></div>';
+    h += '</div>';
+
+    h += '<div class="room-card"><div class="room-card-title">成员看板</div>' +
+      '<div class="room-card-sub" style="margin-bottom:6px">' + escapeHtml(today) + ' · 按今日状态与连续天数排序</div>';
+    if (!v.board.length) h += '<div class="room-card-sub">还没有成员。</div>';
+    v.board.forEach(function (m) {
+      h += '<div class="room-member">' +
+        '<div class="rm-avatar' + (m.todayChecked ? ' done' : '') + '">' + m.emoji + '</div>' +
+        '<div class="rm-main"><div class="rm-name">' + escapeHtml(m.nickname) +
+          (m.id === me ? '<span class="me">我</span>' : '') + '</div>' +
+        '<div class="rm-meta">连续 ' + m.streak + ' 天 · 累计 ' + m.totalDays + ' 天 · 本周 ' + m.weekKcal + ' 千卡</div></div>' +
+        '<div class="rm-right"><div class="rm-state' + (m.todayChecked ? ' done' : '') + '">' +
+          (m.todayChecked ? '已打卡 ✓' : '未打卡') + '</div>' +
+        '<div class="rm-kcal">今日 ' + m.todayKcal + ' 千卡</div></div>' +
+      '</div>';
+    });
+    h += '</div>';
+
+    h += '<div class="ra-actions" style="margin-top:14px">' +
+      '<button class="btn-ghost" id="roomRefreshBtn">刷新看板</button>' +
+      '<button class="btn-ghost danger" id="roomLeaveBtn">退出房间</button></div>';
+    h += '<div class="room-sync">只同步「今天是否打卡 · 完成项数 · 估算消耗」这类摘要；<br>每个动作的重量和次数始终留在你自己的手机里。</div>';
+    return h;
+  }
+  function bindRoomBoard() {
+    var v = roomView();
+    var fill = $("roomProgFill");
+    if (fill) fill.style.width = v.prog.pct + "%";
+    var cp = $("roomCopyBtn");
+    if (cp) cp.addEventListener("click", function () {
+      var code = (cloud.room && cloud.room.code) || "";
+      var done = function () { toast("邀请码已复制"); };
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(code).then(done, function () { toast("邀请码：" + code); });
+        } else { toast("邀请码：" + code); }
+      } catch (e) { toast("邀请码：" + code); }
+    });
+    var rf = $("roomRefreshBtn");
+    if (rf) rf.addEventListener("click", function () {
+      if (!isCloudReady()) { manualSync(); return; }
+      loadRoomData().then(function () { renderRoom(); toast("已刷新"); })
+        .catch(function (e) { toast("刷新失败：" + cloudErr(e)); });
+    });
+    var lv = $("roomLeaveBtn");
+    if (lv) lv.addEventListener("click", leaveRoom);
+  }
+
+  /* ---------- 账号：绑定邮箱（匿名 → 正式） ---------- */
+  var accountFlow = { email: "", mode: "bind" };
+  function openAccount() {
+    var o = $("accountOverlay"); if (!o) return;
+    $("accountCode").value = "";
+    $("accountCodeField").hidden = true;
+    $("accountVerifyBtn").hidden = true;
+    $("accountVerifyBtn").disabled = false;
+    $("accountVerifyBtn").textContent = "确认";
+    if (!cloudOn()) {
+      $("accountTitle").textContent = "账号";
+      $("accountSub").textContent = "当前为纯本地模式。要使用登录与组队功能，请先在「组队」页按指引接入云端。";
+      $("accountEmail").value = "";
+      $("accountSendBtn").hidden = true;
+      o.hidden = false;
+      return;
+    }
+    var bound = cloud.user && !cloud.user.is_anonymous;
+    $("accountTitle").textContent = bound ? "账号" : "绑定邮箱";
+    $("accountSub").textContent = bound
+      ? ("已绑定：" + ((cloud.user && cloud.user.email) || "") + "。换设备时用同一个邮箱即可找回数据。")
+      : "现在是设备账号：数据绑在这台设备上，换设备或清浏览器缓存就会丢。绑定邮箱后，在其他设备用同一邮箱登录即可看到你的记录。";
+    $("accountEmail").value = (cloud.user && cloud.user.email) || "";
+    $("accountSendBtn").hidden = false;
+    $("accountSendBtn").disabled = false;
+    $("accountSendBtn").textContent = "发送验证码";
+    o.hidden = false;
+  }
+  function closeAccount() { var o = $("accountOverlay"); if (o) o.hidden = true; }
+  function sendAccountCode() {
+    if (!cloudOn()) { toast("未配置云端"); return; }
+    var email = ($("accountEmail").value || "").trim();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { toast("请输入有效的邮箱"); return; }
+    accountFlow.email = email;
+    var hasSession = !!(cloud.user && cloud.user.id);
+    accountFlow.mode = hasSession ? "bind" : "login";
+    var btn = $("accountSendBtn");
+    btn.disabled = true; btn.textContent = "发送中…";
+    var p = hasSession ? CLOUD.updateUserEmail(email) : CLOUD.sendEmailOtp(email);
+    p.then(function () {
+      btn.disabled = false; btn.textContent = "重新发送";
+      /* 后台开启 autoconfirm 时邮箱即刻生效，不用再输验证码 */
+      var s = CLOUD.getSession();
+      if (s && s.user && s.user.email && !s.user.is_anonymous) {
+        cloud.user = s.user; closeAccount(); renderRoom(); toast("邮箱已绑定"); return;
+      }
+      $("accountCodeField").hidden = false;
+      $("accountSendBtn").hidden = true;
+      $("accountVerifyBtn").hidden = false;
+      toast("验证码已发送，请查收邮件");
+    }).catch(function (e) {
+      btn.disabled = false; btn.textContent = "发送验证码";
+      toast(cloudErr(e));
+    });
+  }
+  function verifyAccountCode() {
+    var code = ($("accountCode").value || "").trim();
+    if (!code) { toast("请输入验证码"); return; }
+    var type = (accountFlow.mode === "login") ? "email" : "email_change";
+    var btn = $("accountVerifyBtn");
+    btn.disabled = true; btn.textContent = "验证中…";
+    CLOUD.verifyEmailCode(accountFlow.email, code, type).then(function (s) {
+      btn.disabled = false; btn.textContent = "确认";
+      cloud.user = s.user; cloud.ready = true;
+      closeAccount();
+      toast("绑定成功，账号已升级为正式账号");
+      return cloudInit();
+    }).catch(function (e) {
+      btn.disabled = false; btn.textContent = "确认";
+      toast(cloudErr(e));
+    });
   }
 
   /* ---------- 事件绑定 ---------- */
@@ -1858,6 +2658,27 @@
         renderToday();   // 首页问候实时带上用户名
       });
     }
+    /* 应用标题：实时同步到 header 顶部 */
+    var tInput = $("inpAppTitle");
+    if (tInput) {
+      tInput.value = data.appTitle || "健身打卡";
+      tInput.addEventListener("input", function () {
+        data.appTitle = (tInput.value || "").trim() || "健身打卡";
+        save();
+        renderAppTitle();
+      });
+    }
+    /* 点击 header 标题原位编辑：Enter/失焦确认，Esc 取消 */
+    var hTitle = $("headerTitle");
+    var hEdit = $("headerTitleEdit");
+    if (hTitle && hEdit) {
+      hTitle.addEventListener("click", startEditAppTitle);
+      hEdit.addEventListener("keydown", function (e) {
+        if (e.key === "Enter") { e.preventDefault(); commitAppTitleEdit(false); }
+        else if (e.key === "Escape") { commitAppTitleEdit(true); }
+      });
+      hEdit.addEventListener("blur", function () { commitAppTitleEdit(false); });
+    }
     var wInput = $("inpWeight");
     if (wInput) {
       wInput.value = getWeight();
@@ -1939,7 +2760,23 @@
     $("wizNext").addEventListener("click", navigateNext);
     $("wizPrev").addEventListener("click", navigatePrev);
     $("wizBack").addEventListener("click", closeWizard); // 左上角返回：直接回到主页
-    /* 无登录版：无登录相关事件 */
+    /* 计时器（仅 timed 动作显示）：点圆圈 = 开始/暂停/继续 */
+    $("wizTimerRing").addEventListener("click", function () {
+      // 用户点击圆圈是首次手势：激活 AudioContext（浏览器自动播放策略）
+      try { var ac = getWizAudio(); if (ac && ac.state === "suspended") ac.resume(); } catch (e) {}
+      toggleWizTimer();
+    });
+    $("wizTimerReset").addEventListener("click", resetWizTimer);
+    /* 账号与邮箱绑定（组队页「绑定邮箱」触发；v5.0.0 重新引入登录能力） */
+    $("accountSendBtn").addEventListener("click", sendAccountCode);
+    $("accountVerifyBtn").addEventListener("click", verifyAccountCode);
+    $("accountClose").addEventListener("click", closeAccount);
+    $("accountOverlay").addEventListener("click", function (e) { if (e.target === $("accountOverlay")) closeAccount(); });
+    $("accountEmail").addEventListener("keydown", function (e) { if (e.key === "Enter") sendAccountCode(); });
+    $("accountCode").addEventListener("keydown", function (e) { if (e.key === "Enter") verifyAccountCode(); });
+    /* 首页右上角账号入口 */
+    var hab = $("headerAccountBtn");
+    if (hab) hab.addEventListener("click", openAccount);
   }
 
   /* ---------- 启动与鉴权流程 ---------- */
@@ -1954,13 +2791,15 @@
     load();
     ensurePlan(false);
     autoScheduleToday();
-    syncCheckin();   // 自愈：若本地残留“已打卡”但仍有未完成动作（旧版数据），打开即校正
+    renderAppTitle();             // header 顶部标题（用户可改）
     renderSceneSwitch();
     renderGenderToggle();
     applyTheme();     // 应用主题与壁纸
     renderToday();
     renderCalendar();
     try { $("appVersion").textContent = "v" + APP_VERSION; } catch (e) {}
+    renderRoom();                 // 组队页首屏（未配置时显示指引，不影响其它功能）
+    cloudInit();                  // 异步接上云端：失败只影响组队页，不阻塞打卡
     // 首次进入：弹出「默认信息」引导
     if (!data.profileDone) {
       setTimeout(function () { openProfile(); }, 260);
@@ -2268,6 +3107,65 @@
     });
     save();
   }
+
+  /* 测试 / 调试用只读钩子（不参与任何业务逻辑，仅供 test_*.js 断言内部派生结果） */
+  try {
+    window.__fit = {
+      deriveDay: deriveDay,
+      dayActions: dayActions,
+      isChecked: isChecked,
+      ensureRecord: ensureRecord,
+      getRecord: getRecord,
+      estTaskKcal: estTaskKcal,
+      estExKcal: estExKcal,
+      dayCalorie: dayCalorie,
+      ctxOf: ctxOf,
+      blankData: blankData,
+      getData: function () { return data; },
+      /* 云端 / 组队（v5.0.0） */
+      cloud: cloud,
+      cloudOn: cloudOn,
+      isCloudReady: isCloudReady,
+      cloudInit: cloudInit,
+      flushSync: flushSync,
+      pushSummary: pushSummary,
+      pushProfile: pushProfile,
+      pushRecent: pushRecent,
+      loadRoom: loadRoom,
+      loadRoomData: loadRoomData,
+      roomView: roomView,
+      createRoom: createRoom,
+      joinRoom: joinRoom,
+      leaveRoom: leaveRoom,
+      renderRoom: renderRoom,
+      showTab: showTab,
+      openAccount: openAccount,
+      sendAccountCode: sendAccountCode,
+      verifyAccountCode: verifyAccountCode,
+      /* 计时器（v5.1.0 timed 动作） */
+      isTimedTask: isTimedTask,
+      wizTimerState: wizTimerState,
+      initWizTimer: initWizTimer,
+      stopWizTimer: stopWizTimer,
+      startWizTimer: startWizTimer,
+      pauseWizTimer: pauseWizTimer,
+      resetWizTimer: resetWizTimer,
+      toggleWizTimer: toggleWizTimer,
+      tickWizTimer: tickWizTimer,
+      formatWizTimer: formatWizTimer,
+      timerAlarm: timerAlarm,
+      beep: beep,
+      hideWizTimer: hideWizTimer,
+      commitWheel: commitWheel,
+      navigateNext: navigateNext,
+      navigatePrev: navigatePrev,
+      renderAppTitle: renderAppTitle,
+      completeCurrent: completeCurrent,
+      renderWizardStep: renderWizardStep,
+      openWizard: openWizard,
+      closeWizard: closeWizard
+    };
+  } catch (e) {}
 
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", init);

@@ -5,6 +5,7 @@ const fs = require("fs");
 const html = fs.readFileSync("index.html", "utf8")
   .replace(/<link rel="stylesheet"[^>]*>/g, "");
 const appjs = fs.readFileSync("js/app.js", "utf8");
+const calcjs = fs.readFileSync("js/calc.js", "utf8");
 
 const dom = new JSDOM(html, { runScripts: "outside-only", url: "http://localhost:8080/" });
 const { window } = dom;
@@ -18,6 +19,7 @@ window.Date = FakeDate;
 window.confirm = () => true;
 window.alert = () => {};
 window.requestAnimationFrame = function () { return 0; };
+window.setTimeout = (cb) => cb(); // completeCurrent 的视觉反馈/切下一步在测试里同步执行
 
 let pass = 0, fail = 0;
 function ok(name, cond) {
@@ -26,11 +28,11 @@ function ok(name, cond) {
 }
 
 try {
-  window.eval(appjs);
+  window.eval(calcjs); window.eval(appjs);
   try { document.dispatchEvent(new window.Event("DOMContentLoaded")); } catch (e) {}
 } catch (e) { console.log("EVAL ERROR:", e.message); }
 
-ok("版本号 v3.0.10", (document.getElementById("appVersion").textContent || "").indexOf("3.0.10") !== -1);
+ok("版本号 v5.1.0", (document.getElementById("appVersion").textContent || "").indexOf("5.1.0") !== -1);
 
 const checkinText = document.getElementById("checkinText");
 const taskList = document.getElementById("taskList");

@@ -4,6 +4,7 @@ const fs = require("fs");
 
 const html = fs.readFileSync("index.html", "utf8").replace(/<link rel="stylesheet"[^>]*>/g, "");
 const appjs = fs.readFileSync("js/app.js", "utf8");
+const calcjs = fs.readFileSync("js/calc.js", "utf8");
 
 const dom = new JSDOM(html, { runScripts: "outside-only", url: "http://localhost:8080/" });
 const { window } = dom;
@@ -23,7 +24,7 @@ let pending = [];
 const realSetTimeout = window.setTimeout;
 window.setTimeout = function (cb) { pending.push(cb); return 0; };
 
-try { window.eval(appjs); document.dispatchEvent(new window.Event("DOMContentLoaded")); }
+try { window.eval(calcjs); window.eval(appjs); document.dispatchEvent(new window.Event("DOMContentLoaded")); }
 catch (e) { console.log("EVAL ERROR:", e.message); }
 
 // 1. 首次进入：推迟回调里有打开弹窗（初始 hidden=true）

@@ -5,6 +5,7 @@ const fs = require("fs");
 
 const html = fs.readFileSync("index.html", "utf8").replace(/<link rel="stylesheet"[^>]*>/g, "");
 const appjs = fs.readFileSync("js/app.js", "utf8");
+const calcjs = fs.readFileSync("js/calc.js", "utf8");
 
 // 预置“旧版残留”数据：已打卡=true，但还有 2 个未完成动作
 const stale = {
@@ -32,6 +33,7 @@ window.localStorage.setItem("fitapp_data", JSON.stringify(stale));
 window.confirm = () => true;
 window.alert = () => {};
 window.requestAnimationFrame = function () { return 0; };
+window.setTimeout = (cb) => cb(); // completeCurrent 的视觉反馈/切下一步在测试里同步执行
 
 let pass = 0, fail = 0;
 function ok(name, cond) {
@@ -40,7 +42,7 @@ function ok(name, cond) {
 }
 
 try {
-  window.eval(appjs);
+  window.eval(calcjs); window.eval(appjs);
   try { document.dispatchEvent(new window.Event("DOMContentLoaded")); } catch (e) {}
 } catch (e) { console.log("EVAL ERROR:", e.message); }
 

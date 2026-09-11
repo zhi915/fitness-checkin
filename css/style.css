@@ -55,23 +55,43 @@ html, body {
 }
 .header-top { display: flex; align-items: flex-start; justify-content: space-between; }
 .header-sub { font-size: 12px; color: rgba(255,255,255,0.78); }
-.header-title { font-size: 22px; font-weight: 700; margin-top: 2px; letter-spacing: 0.5px; color: #fff; }
+.header-title { font-size: 22px; font-weight: 700; margin-top: 2px; letter-spacing: 0.5px; color: #fff; cursor: text; border-radius: 8px; }
+.header-title:hover { background: rgba(255,255,255,0.10); }
+/* 标题原位编辑框（点击标题出现；Enter/失焦确认，Esc 取消） */
+.header-title-edit {
+  display: none; margin-top: 2px;
+  background: transparent; border: none; outline: none;
+  border-bottom: 2px solid rgba(255,255,255,0.65);
+  color: #fff; font-size: 22px; font-weight: 700; letter-spacing: 0.5px;
+  font-family: inherit; padding: 0 2px 2px; width: min(200px, 60vw);
+}
+.header-title-edit.show { display: inline-block; }
+.header-title-edit::placeholder { color: rgba(255,255,255,0.5); }
 .header-user { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
 .app-version { font-size: 11px; color: rgba(255,255,255,0.62); }
+.header-account-btn {
+  width: 32px; height: 32px; border-radius: 50%; border: none;
+  background: rgba(255,255,255,0.22); color: #fff;
+  font-size: 16px; line-height: 1; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.15s, transform 0.1s;
+}
+.header-account-btn:active { transform: scale(0.94); background: rgba(255,255,255,0.32); }
 
-/* 场景切换（居家 / 健身房） */
+/* 场景切换（居家 / 健身房）：现位于计划页，适配浅色背景 */
 .scene-switch {
-  display: flex; gap: 4px; margin-top: 14px;
-  background: rgba(255,255,255,0.16);
+  display: flex; gap: 4px; margin-bottom: 14px;
+  background: var(--primary-50);
+  border: 1px solid var(--primary-100);
   border-radius: 12px; padding: 4px;
 }
 .scene-btn {
-  flex: 1; border: none; background: transparent; color: rgba(255,255,255,0.85);
+  flex: 1; border: none; background: transparent; color: var(--primary);
   font-size: 13px; font-weight: 600; padding: 9px 8px; border-radius: 9px;
   cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 5px;
   transition: background 0.15s ease, color 0.15s ease;
 }
-.scene-btn.sel { background: #fff; color: var(--primary); box-shadow: 0 2px 6px rgba(15,23,42,0.12); }
+.scene-btn.sel { background: var(--primary); color: #fff; box-shadow: 0 2px 6px rgba(15,23,42,0.12); }
 .scene-ico { font-size: 15px; }
 
 /* ===== Content ===== */
@@ -105,6 +125,38 @@ html, body {
 .hstat-num { font-size: 32px; font-weight: 700; line-height: 1; color: var(--text); }
 .hstat-label { font-size: 12px; color: var(--text-sub); margin-top: 6px; }
 .hstat-divider { width: 1px; height: 36px; background: var(--line); }
+
+/* 首页队友今日打卡 */
+.today-mates { margin: 12px 0 4px; }
+.tm-card {
+  background: var(--card); border: 1px solid var(--line);
+  border-radius: var(--radius); padding: 12px 14px;
+  box-shadow: var(--shadow-sm); cursor: pointer;
+  transition: transform 0.1s, box-shadow 0.15s;
+}
+.tm-card:active { transform: scale(0.99); }
+.tm-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.tm-title { font-size: 14px; font-weight: 600; color: var(--text); }
+.tm-count { font-size: 12px; color: var(--text-sub); }
+.tm-list { display: flex; gap: 12px; flex-wrap: wrap; }
+.tm-item { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 46px; }
+.tm-avatar {
+  width: 40px; height: 40px; border-radius: 50%;
+  background: rgba(128,128,128,0.12); display: flex;
+  align-items: center; justify-content: center;
+  font-size: 18px; position: relative;
+  border: 2px solid transparent;
+}
+.tm-avatar.done { border-color: #22c55e; }
+.tm-avatar.done::after {
+  content: "✓"; position: absolute; bottom: -2px; right: -4px;
+  width: 16px; height: 16px; background: #22c55e; color: #fff;
+  border-radius: 50%; font-size: 10px; display: flex;
+  align-items: center; justify-content: center;
+  border: 2px solid var(--card);
+}
+.tm-name { font-size: 11px; color: var(--text-sub); max-width: 48px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tm-foot { margin-top: 8px; font-size: 12px; color: var(--text-sub); text-align: center; }
 
 .checkin-btn {
   width: 100%;
@@ -402,14 +454,40 @@ html, body {
 .wiz-progress { flex: 1; display: flex; gap: 6px; align-items: center; }
 .wiz-dot { flex: 1; height: 6px; border-radius: 3px; background: var(--line); transition: background 0.2s ease; }
 .wiz-dot.on { background: var(--primary); }
+.wiz-dot.on.done { background: var(--green); }
 .wiz-count { font-size: 13px; color: var(--text-sub); flex: 0 0 auto; font-weight: 600; }
 
 .wiz-body { flex: 1; overflow-y: auto; padding: 26px 20px; display: flex; flex-direction: column; align-items: center; text-align: center; }
-.wiz-action-ico { width: 72px; height: 72px; border-radius: 20px; background: var(--primary-50); color: var(--primary); display: flex; align-items: center; justify-content: center; margin-top: 6px; }
+.wiz-action-ico { width: 72px; height: 72px; border-radius: 20px; background: var(--primary-50); color: var(--primary); display: flex; align-items: center; justify-content: center; margin-top: 6px; position: relative; transition: filter 0.22s ease, background 0.22s ease, color 0.22s ease; }
 .wiz-action-ico svg { width: 42px; height: 42px; }
+/* 完成态：图标暗化 + 绿勾角标（按 ✓ 后 500ms 自动消失） */
+.wiz-action-ico.done { filter: brightness(0.55) grayscale(0.7); background: var(--line-soft); color: var(--text-hint); }
+.wiz-action-ico.done::after { content: "✓"; position: absolute; right: -6px; bottom: -6px; width: 26px; height: 26px; border-radius: 50%; background: var(--green); color: #fff; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.18); }
 .wiz-action-name { font-size: 22px; font-weight: 700; color: var(--text); margin-top: 14px; line-height: 1.4; padding: 0 8px; }
-.wiz-action-meta { font-size: 13px; color: var(--text-sub); margin-top: 8px; }
-.wiz-action-meta b { color: var(--primary); }
+
+/* 计时器（timed 动作直接显示，非 timed 隐藏；无入口按钮） */
+.wiz-timer-inline { margin-top: 16px; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+/* 关键：display:flex 会覆盖 hidden 属性的 UA 默认 display:none，必须显式声明 */
+.wiz-timer-inline[hidden] { display: none; }
+.wiz-timer-ring {
+  position: relative; width: 168px; height: 168px;
+  cursor: pointer; user-select: none; -webkit-user-select: none;
+  border-radius: 50%; transition: transform 0.12s ease;
+}
+.wiz-timer-ring:active { transform: scale(0.97); }
+.wiz-timer-ring svg { width: 100%; height: 100%; transform: rotate(-90deg); pointer-events: none; }
+.wiz-timer-track { fill: none; stroke: var(--primary-100); stroke-width: 7; }
+.wiz-timer-bar { fill: none; stroke: var(--primary); stroke-width: 7; stroke-linecap: round; transition: stroke-dashoffset 0.18s linear, stroke 0.2s; }
+.wiz-timer-bar.done { stroke: var(--green); }
+.wiz-timer-text { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none; }
+.wiz-timer-num { font-size: 36px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; line-height: 1; }
+.wiz-timer-lbl { font-size: 12px; color: var(--text-sub); margin-top: 8px; }
+.wiz-timer-ring.running .wiz-timer-num { color: var(--primary); }
+.wiz-timer-actions { display: flex; gap: 10px; }
+.wiz-timer-btn { border: 1.5px solid var(--primary); background: var(--primary); color: #fff; font-size: 13px; font-weight: 700; padding: 8px 24px; border-radius: 999px; cursor: pointer; transition: transform .12s, background .15s, color .15s; }
+.wiz-timer-btn.ghost { background: transparent; color: var(--primary); }
+.wiz-timer-btn:active { transform: scale(0.95); }
+.wiz-timer-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
 /* 滚轮区 */
 .wiz-wheels { display: flex; gap: 0; margin-top: 28px; width: 100%; max-width: 340px; position: relative; }
@@ -436,9 +514,13 @@ html, body {
 .wiz-wheel-labels { display: flex; gap: 0; width: 100%; max-width: 340px; margin-top: 10px; }
 .wiz-wheel-labels span { flex: 1; text-align: center; font-size: 12px; color: var(--text-sub); }
 .wiz-wheel-labels span[hidden] { display: none; }
-.wiz-body.empty .wiz-wheels, .wiz-body.empty .wiz-wheel-labels { display: none; }
+.wiz-body.empty .wiz-wheels, .wiz-body.empty .wiz-wheel-labels, .wiz-body.empty .wiz-timer-inline { display: none; }
 .wiz-body.empty .wiz-action-name { margin-top: 48px; }
-.wiz-body.empty .wiz-action-meta { margin-top: 12px; font-size: 14px; }
+/* 休息日/未安排提示（原 wizActionMeta 元素已移除，改由伪元素渲染，避免重复插入） */
+.wiz-body.empty .wiz-action-name::after {
+  content: "点击中间圆形按钮记录今天的状态，或返回去添加动作。";
+  display: block; margin-top: 12px; font-size: 14px; color: var(--text-sub); font-weight: 400;
+}
 /* 自重动作：隐藏重量滚轮，滚轮居中 */
 .wiz-wheels.selfweight .wheel:first-child { display: none; }
 .wiz-body.no-weight .wiz-action-ico { background: var(--primary-100); }
@@ -584,3 +666,110 @@ html, body {
   border: none; background: transparent; color: var(--text-hint);
   font-size: 13px; padding: 6px; cursor: pointer;
 }
+.profile-field input[type="email"] { text-align: left; }
+
+/* ============================================================
+   组队（云端）：账号卡 / 房间看板 / 成员列表
+   全部使用主题变量，5 套主题下都跟随配色
+   ============================================================ */
+.room-account {
+  background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 14px; margin-top: 4px; box-shadow: var(--shadow-sm);
+}
+.ra-row { display: flex; align-items: center; gap: 10px; }
+.ra-avatar {
+  width: 40px; height: 40px; border-radius: 50%; flex: 0 0 auto;
+  display: flex; align-items: center; justify-content: center; font-size: 20px;
+  background: var(--primary-50); border: 1px solid var(--primary-100);
+}
+.ra-main { flex: 1; min-width: 0; }
+.ra-name { font-size: 14px; font-weight: 700; color: var(--text); }
+.ra-sub { font-size: 11.5px; color: var(--text-sub); margin-top: 2px; }
+.ra-tag {
+  font-size: 10.5px; padding: 3px 8px; border-radius: 999px; flex: 0 0 auto;
+  background: var(--line-soft); color: var(--text-sub); border: 1px solid var(--line);
+}
+.ra-tag.on { background: var(--primary-50); color: var(--primary); border-color: var(--primary-100); }
+.ra-tag.warn { background: #FEF3C7; color: #92400E; border-color: #FDE68A; }
+.ra-actions { display: flex; gap: 8px; margin-top: 12px; }
+.ra-actions .btn-ghost { padding: 9px; font-size: 13px; }
+
+.room-card {
+  background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 16px; margin-top: 14px; box-shadow: var(--shadow-sm);
+}
+.room-card-title { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+.room-card-sub { font-size: 12px; color: var(--text-sub); line-height: 1.6; }
+
+.room-hero {
+  background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 16px; margin-top: 14px; box-shadow: var(--shadow-sm);
+}
+.rh-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.rh-name { font-size: 17px; font-weight: 700; }
+.rh-goal { font-size: 12px; color: var(--text-sub); margin-top: 3px; }
+.rh-code {
+  display: flex; align-items: center; gap: 6px; margin-top: 12px;
+  background: var(--primary-50); border: 1px dashed var(--primary-100);
+  border-radius: 12px; padding: 10px 12px;
+}
+.rh-code-label { font-size: 11.5px; color: var(--text-sub); }
+.rh-code-val { font-size: 19px; font-weight: 700; letter-spacing: 3px; color: var(--primary); flex: 1; }
+.rh-copy {
+  border: none; background: none; color: var(--primary); font-size: 12.5px;
+  font-weight: 700; cursor: pointer; padding: 4px 6px;
+}
+.rh-progress { margin-top: 14px; }
+.rhp-top { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-sub); margin-bottom: 6px; }
+.rhp-num { color: var(--primary); font-weight: 700; }
+.rhp-bar { height: 10px; background: var(--line-soft); border-radius: 999px; overflow: hidden; }
+.rhp-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--primary), var(--accent)); transition: width .45s ease; width: 0; }
+
+.room-member {
+  display: flex; align-items: center; gap: 11px;
+  padding: 11px 0; border-bottom: 1px solid var(--line-soft);
+}
+.room-member:last-child { border-bottom: none; }
+.rm-avatar {
+  width: 38px; height: 38px; border-radius: 50%; flex: 0 0 auto;
+  display: flex; align-items: center; justify-content: center; font-size: 19px;
+  background: var(--line-soft); position: relative;
+}
+.rm-avatar.done { background: var(--primary-50); border: 1px solid var(--primary-100); }
+.rm-main { flex: 1; min-width: 0; }
+.rm-name { font-size: 14px; font-weight: 600; color: var(--text); }
+.rm-name .me { font-size: 10.5px; color: var(--primary); margin-left: 5px; font-weight: 700; }
+.rm-meta { font-size: 11.5px; color: var(--text-sub); margin-top: 2px; }
+.rm-right { text-align: right; flex: 0 0 auto; }
+.rm-state { font-size: 12px; font-weight: 700; color: var(--text-hint); }
+.rm-state.done { color: var(--primary); }
+.rm-kcal { font-size: 11px; color: var(--text-hint); margin-top: 2px; }
+
+.room-empty { text-align: center; padding: 26px 8px; }
+.room-empty-ico { font-size: 40px; }
+.room-empty-title { font-size: 15px; font-weight: 700; margin-top: 10px; }
+.room-empty-sub { font-size: 12.5px; color: var(--text-sub); margin-top: 6px; line-height: 1.7; }
+
+.room-field { margin-top: 12px; }
+.room-field label { display: block; font-size: 12.5px; color: var(--text-sub); font-weight: 600; margin-bottom: 6px; }
+.room-input {
+  width: 100%; border: 1.5px solid var(--line); border-radius: 12px;
+  padding: 12px 13px; font-size: 15px; outline: none;
+  background: var(--card); color: var(--text);
+}
+.room-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-50); }
+.room-input.code { letter-spacing: 4px; font-weight: 700; text-transform: uppercase; text-align: center; }
+.room-btn {
+  width: 100%; margin-top: 12px; border: none; border-radius: 13px;
+  background: linear-gradient(135deg, var(--primary), var(--primary-600));
+  color: #fff; font-size: 15px; font-weight: 700; padding: 13px; cursor: pointer;
+}
+.room-btn:active { transform: translateY(1px); }
+.room-btn.ghost { background: var(--card); color: var(--text-sub); border: 1px solid var(--line); }
+.room-steps { margin: 10px 0 0; padding-left: 18px; }
+.room-steps li { font-size: 12.5px; color: var(--text-sub); line-height: 1.9; }
+.room-steps code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px;
+  background: var(--line-soft); padding: 1px 5px; border-radius: 5px;
+}
+.room-sync { font-size: 11px; color: var(--text-hint); text-align: center; margin-top: 14px; line-height: 1.6; }

@@ -5,6 +5,7 @@ const fs = require("fs");
 const html = fs.readFileSync("index.html", "utf8")
   .replace(/<link rel="stylesheet"[^>]*>/g, "");           // 去掉 CSS 链接，避免文件加载噪音
 const appjs = fs.readFileSync("js/app.js", "utf8");
+const calcjs = fs.readFileSync("js/calc.js", "utf8");
 
 const dom = new JSDOM(html, { runScripts: "outside-only", url: "http://localhost:8080/", pretendToBeVisual: true });
 const { window } = dom;
@@ -21,9 +22,11 @@ class FakeDate extends RealDate {
 window.Date = FakeDate;
 window.confirm = function () { return true; };
 window.alert = function () {};
+window.requestAnimationFrame = function () { return 0; };
+window.setTimeout = (cb) => cb(); // completeCurrent 的视觉反馈/切下一步在测试里同步执行
 
 // 执行真实 app.js（outside-only 模式下用 window.eval 运行）
-window.eval(appjs);
+window.eval(calcjs); window.eval(appjs);
 // jsdom 构造后 readyState 仍为 loading，手动触发 DOMContentLoaded 以启动 init()
 window.document.dispatchEvent(new window.Event("DOMContentLoaded", { bubbles: true }));
 
@@ -70,19 +73,17 @@ ok("打卡向导已打开", $("wizard").hidden === false);
 const total = TASK_N;
 for (let n = 0; n < total + 3; n++) {
   if ($("wizard").hidden) break;
-  const before = JSON.parse(window.localStorage.getItem("fitapp_data"));
-  const cur = before.records[TODAY] || before.records[TODAY.toLowerCase()];
-  if (cur && cur.checkedIn) break;
+  if (window.__fit.isChecked(TODAY)) break;   // 派生：全部完成才算已打卡
   click($("wizDone"));   // 完成当前动作并前进
 }
 // 完成页出现（setTimeout 1300ms 后自动关闭）
 setTimeout(function () {
-  const stored = JSON.parse(window.localStorage.getItem("fitapp_data"));
-  const rec = stored.records[TODAY];
-  ok("打卡记录已写入且 checkedIn=true", rec && rec.checkedIn === true);
-  ok("打卡记录包含今日动作内容(actions 数组)", rec && Array.isArray(rec.actions) && rec.actions.length === total);
-  ok("动作内容含重量/组数/次数解析(s 或 r 存在)", rec && rec.actions.some(function (a) { return a.s || a.r; }));
-  ok("已完成的动作 done=true", rec && rec.actions.every(function (a) { return a.done === true; }));
+  // v4.0.0：不再断言持久化的 checkedIn/actions，改为断言派生层（单一状态源）
+  const d = window.__fit.deriveDay(TODAY);
+  ok("打卡判定为已完成（deriveDay.checked）", d.checked === true);
+  ok("动作明细包含今日全部动作（派生）", d.actions.length === total);
+  ok("动作内容含重量/组数/次数解析(s 或 r 存在)", d.actions.some(function (a) { return a.s || a.r; }));
+  ok("已完成的动作 done=true", d.actions.every(function (a) { return a.done === true; }));
 
   // 今日动作记录区渲染
   ok("今日动作记录区显示", $("todayActionsTitle") && $("todayActions").querySelectorAll(".today-action").length === total);

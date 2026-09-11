@@ -6,6 +6,7 @@ const fs = require("fs");
 
 const html = fs.readFileSync("index.html", "utf8").replace(/<link rel="stylesheet"[^>]*>/g, "");
 const appjs = fs.readFileSync("js/app.js", "utf8");
+const calcjs = fs.readFileSync("js/calc.js", "utf8");
 const css = fs.readFileSync("css/style.css", "utf8");
 
 const dom = new JSDOM(html, { runScripts: "outside-only", url: "http://localhost:8080/" });
@@ -20,6 +21,12 @@ window.Date = FakeDate;
 window.confirm = () => true;
 window.alert = () => {};
 window.requestAnimationFrame = function () { return 0; };
+// completeCurrent 用 480ms 切下一步（同步执行）；showWizardDone 用 1300ms 自动关闭（保持异步，由外层 setTimeout(1600) 等待）
+const _realSetTimeout = window.setTimeout.bind(window);
+window.setTimeout = function (cb, ms) {
+  if ((ms || 0) <= 500) { try { cb(); } catch (e) {} return 0; }
+  return _realSetTimeout(cb, ms);
+};
 
 let pass = 0, fail = 0;
 function ok(name, cond) {
@@ -32,7 +39,7 @@ ok("CSS 含 .wiz-done-view[hidden] 隐藏规则", css.indexOf("wiz-done-view[hid
 ok("CSS 含 .wiz-body[hidden] 隐藏规则", css.indexOf(".wiz-body[hidden]") !== -1);
 
 try {
-  window.eval(appjs);
+  window.eval(calcjs); window.eval(appjs);
   try { document.dispatchEvent(new window.Event("DOMContentLoaded")); } catch (e) {}
 } catch (e) { console.log("EVAL ERROR:", e.message); }
 
@@ -41,7 +48,7 @@ const wizDoneView = document.getElementById("wizDoneView");
 const wizBody = document.getElementById("wizBody");
 const wizWizard = document.getElementById("wizard");
 
-ok("版本号 v3.0.10", (document.getElementById("appVersion").textContent || "").indexOf("3.0.10") !== -1);
+ok("版本号 v5.1.0", (document.getElementById("appVersion").textContent || "").indexOf("5.1.0") !== -1);
 
 /* 1. 自动排程产生任务（周一训练日） */
 const before = document.getElementById("taskList").children.length;

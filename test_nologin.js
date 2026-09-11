@@ -6,11 +6,12 @@ const { JSDOM } = require("jsdom");
 const root = __dirname;
 let html = fs.readFileSync(path.join(root, "index.html"), "utf8");
 const appjs = fs.readFileSync(path.join(root, "js", "app.js"), "utf8");
+const calcjs = fs.readFileSync(path.join(root, "js", "calc.js"), "utf8");
 
-// 剥掉外部 css / 外部 script（避免 jsdom 去 fetch 网络资源），改为内联 app.js
+// 剥掉外部 css / 外部 script（避免 jsdom 去 fetch 网络资源），改为内联 calc.js + app.js
 html = html.replace(/<link[^>]*stylesheet[^>]*>/g, "");
-html = html.replace(/<script src="js\/app\.js[^"]*"><\/script>/g, "");
-html = html.replace("</body>", "<script>\n" + appjs + "\n</script></body>");
+html = html.replace(/<script src="js\/(app|calc)\.js[^"]*"><\/script>/g, "");
+html = html.replace("</body>", "<script>\n" + calcjs + "\n</script>\n<script>\n" + appjs + "\n</script></body>");
 
 const dom = new JSDOM(html, {
   runScripts: "dangerously",
@@ -42,7 +43,7 @@ setTimeout(function () {
   assert(!!app, "主界面 #app 存在");
   assert(!/display\s*:\s*none/.test(app.getAttribute("style") || ""), "#app 没有 display:none（默认可见）");
   const ver = doc.getElementById("appVersion");
-  assert(ver && /3\.0\.10/.test(ver.textContent), "顶栏版本号显示 v3.0.10（实际：" + (ver && ver.textContent) + "）");
+  assert(ver && /5\.1\.0/.test(ver.textContent), "顶栏版本号显示 v5.1.0（实际：" + (ver && ver.textContent) + "）");
   const loadBtn = doc.getElementById("taskLoadBtn");
   assert(!!loadBtn, "「今日任务」标题右侧有「载入」按钮");
   assert(!doc.getElementById("recoBanner"), "旧推荐横幅已移除");

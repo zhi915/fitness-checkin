@@ -4,6 +4,7 @@ const fs = require("fs");
 
 const html = fs.readFileSync("index.html", "utf8").replace(/<link rel="stylesheet"[^>]*>/g, "");
 const appjs = fs.readFileSync("js/app.js", "utf8");
+const calcjs = fs.readFileSync("js/calc.js", "utf8");
 
 let pass = 0, fail = 0;
 function ok(name, cond) { if (cond) { pass++; console.log("✓ " + name); } else { fail++; console.log("✗ " + name); } }
@@ -21,7 +22,7 @@ function bootOnWeekday(jsDay) {
   window.confirm = () => true;
   window.alert = () => {};
   window.requestAnimationFrame = function () { return 0; };
-  window.eval(appjs);
+  window.eval(calcjs); window.eval(appjs);
   window.document.dispatchEvent(new window.Event("DOMContentLoaded"));
   return window;
 }
